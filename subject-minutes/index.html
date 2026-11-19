@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>학기말 교과협의록</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1f2933;--sub:#5f6b7a;--pri:#2457c5;--pri2:#e8eefb;--ok:#1d8a4e;--warn:#b7791f;--bad:#c53030}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Pretendard','Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif;font-size:15px}
+header.top{background:#1f3b73;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header.top h1{font-size:19px;margin:0}
+header.top .mode{font-size:13px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px}
+header.top .sp{flex:1}
+header.top a{color:#cfe0ff;font-size:13px}
+main{padding:16px}
+.layout{display:grid;grid-template-columns:minmax(440px,1fr) auto;gap:18px;align-items:start}
+@media (max-width:1250px){.layout{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 small{font-weight:normal;color:var(--sub);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 10px}
+.f{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--sub)}
+.f.w2{grid-column:span 2}.f.wall{grid-column:1/-1}
+.f input,.f select,.f textarea,textarea{font:inherit;font-size:14px;color:var(--ink);padding:6px 8px;border:1px solid #c4cad3;border-radius:6px;background:#fff;width:100%}
+textarea{resize:vertical;min-height:62px;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:2px solid #9db7ee;border-color:var(--pri)}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.chk input{width:18px;height:18px}
+.btn{font:inherit;font-size:14px;border:1px solid #b9c2cf;background:#fff;border-radius:7px;padding:7px 13px;cursor:pointer;color:var(--ink)}
+.btn:hover{background:#f0f3f8}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:#1c4aa8}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.sm{font-size:12.5px;padding:4px 9px}
+.btn.del{color:var(--bad);border-color:#e9b8b8}
+.btn:disabled{opacity:.5;cursor:default}
+.row-card{border:1px solid var(--line);border-left:4px solid var(--pri);border-radius:8px;padding:10px 12px;margin:10px 0;background:#fbfcfe}
+.row-card.exam{border-left-color:#8a4fd0}
+.rc-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:bold}
+.rc-head .sp{flex:1}
+.calc{margin:8px 0 6px;padding:7px 10px;background:var(--pri2);border-radius:6px;font-size:13.5px;line-height:1.6}
+.calc b{color:var(--pri)}
+.calc .err{color:var(--bad)}
+.note-h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.chip{font-size:13px;border:1px dashed #8fa6d6;background:#fff;color:var(--pri);border-radius:20px;padding:4px 10px;cursor:pointer}
+.chip:hover{background:var(--pri2)}
+.hint{font-size:13px;color:var(--sub);margin:4px 0}
+.banner{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:14px;line-height:1.55}
+.banner.warn{background:#fff7e6;border:1px solid #f3d29b}
+.banner.info{background:#eaf2ff;border:1px solid #bcd2f7}
+.banner.ok{background:#e8f7ee;border:1px solid #a9dcbc}
+.actions{display:flex;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--bg);padding:10px 0}
+.sub-rows .sr{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:6px;margin:4px 0;align-items:end}
+.preview-wrap{position:sticky;top:10px;max-height:calc(100vh - 20px);overflow:auto;border-radius:6px}
+.page{width:210mm;min-height:297mm;padding:14mm 14mm;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15);margin:0 auto 16px}
+.tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:8px 16px;border:1px solid var(--line);border-radius:8px 8px 0 0;background:#e9ecf1;cursor:pointer;font-size:14px}
+.tab.on{background:#fff;border-bottom-color:#fff;font-weight:bold;color:var(--pri)}
+table.lst{width:100%;border-collapse:collapse;font-size:14px;background:#fff}
+table.lst th,table.lst td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left}
+table.lst th{background:#f0f2f6;font-size:13px;color:var(--sub)}
+.st-ok{color:var(--ok);font-weight:bold}.st-no{color:var(--bad)}
+.set-tbl{width:100%;border-collapse:collapse;font-size:14px}
+.set-tbl td,.set-tbl th{border:1px solid var(--line);padding:4px}
+.set-tbl th{background:#f0f2f6;font-size:13px}
+.set-tbl input{width:100%;border:0;padding:5px;font:inherit;font-size:14px}
+details summary{cursor:pointer;font-weight:bold;margin:6px 0}
+ol.guide li{margin:5px 0;line-height:1.55}
+code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:13px;word-break:break-all}
+#toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1f2933;color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99;max-width:90vw}
+#toast.show{opacity:1}
+footer{color:var(--sub);font-size:12.5px;text-align:center;padding:16px}
+footer a{color:var(--sub)}
+
+/* ===== 문서(한글 양식 모양) ===== */
+.doc{font-family:'HCR Batang','함초롬바탕','Batang','바탕','Noto Serif KR',serif;font-size:10.5pt;color:#000;line-height:1.55}
+.doc-head{display:flex;align-items:flex-end;margin-bottom:8px}
+.doc-title{flex:1;text-align:center;font-size:21pt;font-weight:bold;letter-spacing:1px;padding-bottom:4px}
+.appr{border-collapse:collapse}
+.appr th,.appr td{border:1px solid #000;font-size:9.5pt;padding:2px 6px;text-align:center;font-weight:normal;min-width:60px}
+.appr td{height:44px;vertical-align:middle}
+.appr th.v{min-width:0;width:24px;line-height:1.3}
+table.t{width:100%;border-collapse:collapse;table-layout:fixed}
+table.t th,table.t td{border:1px solid #000;padding:4px 5px;vertical-align:middle;text-align:center;word-break:keep-all;overflow-wrap:anywhere}
+table.t th{background:#e8e8e8;font-weight:bold}
+table.t td.left{text-align:left;vertical-align:top}
+table.main>tbody>tr>th{font-size:10.5pt}
+.content{padding:8px 8px!important}
+.content p{margin:3px 0}
+.content .sec{font-weight:bold;margin-top:10px}
+.content .sec:first-child{margin-top:0}
+.content .sub{margin:6px 0 4px 6px}
+.content .ind{margin-left:14px}
+.content .note{margin:4px 0 2px 14px;text-indent:-0px}
+.content .formula{margin:1px 0 4px 30px}
+table.it{width:100%;border-collapse:collapse;table-layout:auto;margin:4px 0 6px;font-size:9pt}
+table.it th,table.it td{border:1px solid #000;padding:3px 3px;text-align:center;vertical-align:middle;word-break:keep-all;overflow-wrap:anywhere;line-height:1.35}
+table.it th{background:#e8e8e8}
+table.it td.l{text-align:left;font-size:8.5pt;min-width:120px}
+table.it .nw{white-space:nowrap}
+table.it td.ar{min-width:70px}
+table.it td.mt{min-width:105px}
+table.it td.l{width:30%}
+.reg{border:1px solid #000;padding:6px 8px;margin:4px 0;font-size:9.5pt;line-height:1.55}
+.gdoc .gtitle{font-weight:bold;font-size:13pt;margin:0 0 10px}
+.gdoc .gsec{font-weight:bold;font-size:11.5pt;margin:14px 0 4px}
+.gdoc .gsub{font-weight:bold;margin:12px 0 4px}
+.gdoc .exbox{border:1px solid #000;padding:6px 8px;margin:4px 0 10px}
+.gdoc .exbox .exname{font-weight:bold}
+
+#printRoot{display:none}
+@page{size:A4;margin:12mm}
+@media print{
+  body{background:#fff}
+  body>*:not(#printRoot){display:none!important}
+  #printRoot{display:block}
+  .print-page{page-break-after:always;break-after:page}
+  .print-page:last-child{page-break-after:auto;break-after:auto}
+  table.it tr{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>학기말 교과협의록</h1><span class="mode" id="modeLabel"></span>
+  <span class="sp"></span><span id="apiState" style="font-size:13px"></span>
+</header>
+<main id="app"><p>불러오는 중…</p></main>
+<footer>제작: 과학교사 구인회 · <a href="#" id="modeSwitch"></a></footer>
+<div id="printRoot"></div>
+<div id="toast"></div>
+<datalist id="dlRoster"></datalist>
+<datalist id="dlAreas"></datalist>
+<datalist id="dlSubjects"></datalist>
+
+<script>
+'use strict';
+/* =========================================================
+   기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
+   ========================================================= */
+const REG_DEFAULT = {
+  r15_1: "제15조(인정점 부여)\n 1. 인정점 부여 기준\n가. 교과목별 정기시험 및 수행평가에 참여하지 못한 학생(결시학생)의 성적처리는 결시한 당해 학기 내에서 응시한 정기시험의 성적, 평균점을 고려한 성적 및 기타 성적의 일정 비율을 환산한 성적(인정점)을 학기말에 부여한다.",
+  r15_1na: "나. 정기시험 및 수행평가를 결시한 경우 다음과 같이 인정점을 부여한다.\n1) 정기시험을 결시한 경우 당해 학기 내에 응시한 다른 고사의 점수를 인정점 비율에 따라 부여한다. 즉 1회고사를 결시한 경우 2회고사 점수를, 2회고사를 결시한 경우 1회고사 점수를 인정점 비율에 따라 부여한다.",
+  r15_2h: " 2. 정기시험의 결시학생",
+  r15_2ga6: "가. ‘100% 인정점’을 부여하는 경우\n6) 전·편입학으로 인한 학교장이 인정하는 결시",
+  r15_2na1: "나. 다음 각 호의 하나에 해당하는 경우에는 ‘80% 인정점’을 부여한다.\n1) 질병으로 인한 결시\n가) 질병결임을 증명할 수 있는 의사의 진단서 또는 의견서(병명, 진료기간 등이 기록된 의사 소견서, 진료 확인서 등의 증빙서류)를 첨부한 결석 신고서를 결석한 날부터 5일 이내에 제출하여 학교장의 승인을 받은 경우",
+  r15_2da: "다. 석차 산출을 위한 재적수에 포함되는 학생 성적의 해당과목 ‘최하점의 -1점’을 부여하는 경우는 다음과 같다.\n1. 미인정 결석으로 인한 결시\n바. 태만, 가출, 출석 거부 등 고의로 결시한 경우\n사. 기타 합당하지 않은 사유로 결시한 경우\n2. 인정 결석으로 인한 결시\n가. 정기시험기간 중 교외체험학습(단, 감염병의 전국적 유행 등 국가 재난에 준하는 상황에서는 학업성적관리위원회의 심의를 거쳐 인정점 부여 기준 달리 정하여 적용할 수 있다.)",
+  r15_3: " 3. 수행평가 결시학생\n수행평가 미응시 학생의 수행평가 점수는 교과(학년)협의회에서 점수 부여 기준을 설정하고, 학업성적관리위원회의 심의를 거쳐 학교장이 결정한다.",
+  r15_4: " 4. 재취학, 전ㆍ편입학 학생\n재취학, 전·편입학 학생이 원적교 고사에서 결시 등으로 성적이 없는 경우, 재취학, 전·편입학한 이후 성적을 기준으로 결시에 따른 인정점을 부여한다.",
+  r16: "제16조(학업 성적 평가 결과 처리)\n3. 재취학, 전ㆍ편입학, 전출 학생 성적처리\n나. 재취학, 전ㆍ편입학 학생은 각 호에 따라 성적을 산출한다.\n3) 재취학, 전ㆍ편입학 이후 성적산출을 위한 원적교의 성적이 없을 경우에는 전ㆍ편입학 이후 취득한 평가의 성적을 반영한다. 다만, 결시 등의 사유로 인정점을 부여해야 하는 경우, ‘학업성적관리규정’에 따른다.",
+  // 부여표 '인정점수 부여 근거' 칸
+  bPerf: "제15조(인정점 부여) 3항\n수행평가 미응시 학생의 수행평가 점수는 교과(학년)협의회에서 점수 부여 기준을 설정하고, 학업성적관리위원회의 심의를 거쳐 학교장이 결정한다.",
+  bExamIll: "제15조(인정점 부여) 2항\n나. ‘80% 인정점’을 부여하는 경우\n1) 질병으로 인한 결시",
+  bExamUnexc: "제15조(인정점 부여) 2항\n다. 석차 산출을 위한 재적수에 포함되는 학생 성적의 ‘최하점의 –1점’을 부여하는 경우\n1. 미인정 결석으로 인한 결시\n바. 태만, 가출, 출석 거부 등 고의로 결석한 경우\n사. 기타 합당하지 않은 사유로 결시한 경우",
+  bExamTrans: "제15조(인정점 부여) 4항\n재취학, 전·편입학 학생이 원적교 고사에서 결시 등으로 성적이 없는 경우, 재취학, 전·편입학한 이후 성적을 기준으로 결시에 따른 인정점을 부여한다.(세부 성적 산출 방법은 ‘제16조 3항 재취학, 전·편입학, 전출 학생 등의 성적 처리’ 참고)",
+  bExamOther: "제15조(인정점 부여) 2항"
+};
+const REG_LABELS = {
+  r15_1:'제15조 1항 가 (항상 포함)', r15_1na:'제15조 1항 나 (정기시험 있을 때)', r15_2h:'제15조 2항 제목', r15_2ga6:'제15조 2항 가 6) 전입', r15_2na1:'제15조 2항 나 1) 질병결', r15_2da:'제15조 2항 다 (최하점 -1점)', r15_3:'제15조 3항 (수행평가)', r15_4:'제15조 4항 (전입)', r16:'제16조 3항 (전입)',
+  bPerf:'[부여표 근거] 수행평가', bExamIll:'[부여표 근거] 정기시험-질병결', bExamUnexc:'[부여표 근거] 정기시험-미인정결', bExamTrans:'[부여표 근거] 정기시험-전입', bExamOther:'[부여표 근거] 정기시험-기타'
+};
+const DEFAULT_SUBJECTS = ['국어','도덕','사회','역사','수학','과학','기술·가정','정보','영어','체육','음악','미술','한문'];
+const DEFAULT_CFG = {
+  year: new Date().getFullYear(),
+  approvalLabels: '부장, 교감', approvalSigns: ', 전결',
+  subjects: DEFAULT_SUBJECTS.map(n=>({name:n, teachers:{1:'',2:'',3:''}, areas:{1:'',2:'',3:''}})),
+  roster: {1:[],2:[],3:[]},
+  reg: {}
+};
+const REASONS = ['전입','질병결','미인정결','인정결','기타'];
+const PERF_METHODS = [['origin','원적교 점수 인정'],['other','다른 수행평가(타영역) 점수의 ○%'],['avg','평균 비율 계산식'],['count','개수 × 배점'],['manual','직접 입력']];
+const EXAM_METHODS = [['other','다른 정기시험 점수의 ○%'],['lowest','최하점의 -1점'],['manual','직접 입력']];
+const EXAMS = ['1차 시험','2차 시험'];
+
+/* ===================== 작은 도구들 ===================== */
+const $ = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nl = s=>esc(s).replace(/\n/g,'<br>');
+const clone = o=>JSON.parse(JSON.stringify(o));
+const num = v=>{ if(v===''||v==null) return NaN; const x=parseFloat(String(v).replace(/,/g,'')); return x; };
+const r2 = x=>Math.round(x*100+(x>=0?1e-7:-1e-7))/100;
+const fmt = v=>{ const x=typeof v==='number'?v:num(v); return (x===undefined||isNaN(x)||!isFinite(x))?'':String(r2(x)); };
+const pct = v=>{ const x=num(v); return isNaN(x)?100:x; };
+function ro(w){ w=String(w||''); const c=w.charCodeAt(w.length-1); if(!(c>=0xAC00&&c<=0xD7A3)) return w+'(으)로'; const j=(c-0xAC00)%28; return w+((j===0||j===8)?'로':'으로'); }
+function getPath(o,p){ return p.split('.').reduce((a,k)=>a==null?a:a[k],o); }
+function setPath(o,p,v){ const ks=p.split('.'); const last=ks.pop(); const t=ks.reduce((a,k)=>a[k]??(a[k]={}),o); t[last]=v; }
+function toast(msg,ms=2600){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
+function debounce(fn,ms){ let h; return (...a)=>{ clearTimeout(h); h=setTimeout(()=>fn(...a),ms); }; }
+function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtDate(s){ if(!s) return '     년    월    일'; const [y,m,d]=s.split('-'); return `${+y}년 ${+m}월 ${+d}일`; }
+function lt(iso){ const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+const split = s=>String(s||'').split(/[,，\n]/).map(x=>x.trim()).filter(Boolean);
+
+/* ===================== 서버 연결 ===================== */
+const Q = new URLSearchParams(location.search);
+let API_URL = Q.get('api') || localStorage.getItem('kc_api') || '';
+if(Q.get('api')) localStorage.setItem('kc_api', API_URL);
+const IS_ADMIN = Q.has('admin');
+
+async function api(action, data={}){
+  if(!API_URL) throw new Error('서버 주소가 설정되지 않았습니다.');
+  if(API_URL==='demo') return demoApi(action, data);
+  const res = await fetch(API_URL, {method:'POST', body: JSON.stringify({action, ...data})});
+  const txt = await res.text();
+  let j; try{ j=JSON.parse(txt); }catch(e){ throw new Error('서버 응답을 읽지 못했습니다. (Apps Script 배포 설정을 확인하세요)'); }
+  if(!j.ok) throw new Error(j.error||'서버 오류');
+  return j;
+}
+function demoApi(action,d){ // 연습 모드: 이 브라우저에만 저장
+  const st = JSON.parse(localStorage.getItem('kc_demo')||'{}');
+  const save=()=>localStorage.setItem('kc_demo',JSON.stringify(st));
+  if(action==='ping') return {ok:true};
+  if(action==='get') return {ok:true, value: st[d.key]?st[d.key].value:null};
+  if(action==='set'||action==='submit'){ st[d.key]={value:d.value, updated:new Date().toISOString()}; save(); return {ok:true}; }
+  if(action==='remove'){ delete st[d.key]; save(); return {ok:true}; }
+  if(action==='list') return {ok:true, items:Object.keys(st).filter(k=>k.startsWith(d.prefix||'')).map(k=>({key:k, value:st[k].value, updated:st[k].updated}))};
+  return {ok:false,error:'?'};
+}
+
+/* ===================== 설정 ===================== */
+let CFG = clone(DEFAULT_CFG);
+function normalizeCfg(c){
+  c = Object.assign(clone(DEFAULT_CFG), c||{});
+  c.reg = Object.assign({}, REG_DEFAULT, c.reg||{});
+  c.roster = Object.assign({1:[],2:[],3:[]}, c.roster||{});
+  c.subjects = (c.subjects||[]).map(s=>({name:s.name||'', teachers:Object.assign({1:'',2:'',3:''},s.teachers||{}), areas:Object.assign({1:'',2:'',3:''},s.areas||{})}));
+  return c;
+}
+async function loadCfg(){
+  if(!API_URL){ CFG=normalizeCfg(null); return false; }
+  try{ const j=await api('get',{key:'config'}); CFG=normalizeCfg(j.value); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); return true; }
+  catch(e){ const c=localStorage.getItem('kc_cfg_cache'); CFG=normalizeCfg(c?JSON.parse(c):null); throw e; }
+}
+const rosterOf = g=>CFG.roster[g]||[];
+const findStu = (g,sid)=>rosterOf(g).find(s=>String(s.sid)===String(sid).trim());
+const subjCfg = name=>CFG.subjects.find(s=>s.name===name);
+function setDatalists(grade, subject){
+  $('#dlRoster').innerHTML = rosterOf(grade).map(s=>`<option value="${esc(s.sid)}">${esc(s.name)} · ${esc(s.reason||'')}</option>`).join('');
+  const sc=subjCfg(subject); $('#dlAreas').innerHTML = (sc?split(sc.areas[grade]):[]).map(a=>`<option value="${esc(a)}">`).join('');
+  $('#dlSubjects').innerHTML = CFG.subjects.map(s=>`<option value="${esc(s.name)}">`).join('');
+}
+
+/* ===================== 계산 ===================== */
+function reasonLabel(r){ return r.reason==='기타' ? (r.reasonText||'기타') : (r.reason||''); }
+function reasonPhrase(r){ return ({'질병결':'질병결','미인정결':'미인정 결석','인정결':'출석인정 결석','전입':'전입'})[r.reason] || (r.reasonText||'결시'); }
+
+function perfCalc(r){
+  const R=pct(r.ratio); let base=NaN, score=NaN, text='', formula='';
+  switch(r.method){
+    case 'origin':
+      base=num(r.base); score=base*R/100;
+      text=`원적교(${r.originArea||'   '}) 점수 인정`+(R!==100?` ${R}%`:'');
+      if(R!==100) formula=`${fmt(base)}점 × ${R/100} = ${fmt(score)}점`;
+      break;
+    case 'other':
+      base=num(r.base); score=base*R/100;
+      text=`기준점수(타영역)의 ${R}%`;
+      formula=`${r.area||'해당 평가'}: ${fmt(base)}점 × ${R/100} = ${fmt(score)}점`;
+      break;
+    case 'avg': {
+      const a=num(r.avgAbs), t=num(r.avgTake), s=num(r.takeScore);
+      base=a/t*s; score=base*R/100;
+      text=`기준점수의 ${R}%\n(기준점수는 계산식 활용 산출)`;
+      formula=`결시고사 평균(${fmt(a)}) ÷ 응시(기준)고사 평균(${fmt(t)}) × 응시(기준)고사 점수(${fmt(s)}) × ${R}% = ${fmt(score)}점`;
+      break; }
+    case 'count': {
+      const c=num(r.count), p=num(r.per), mx=num(r.max); const raw=c*p;
+      base=isNaN(mx)?raw:Math.min(raw,mx); score=base;
+      const u=r.unit||'학습지';
+      text=`(${u} 개수×${fmt(p)||'○'})로 점수 인정`;
+      formula=`${u} 개수(${fmt(c)}개) × ${fmt(p)} = ${fmt(raw)}점`+(!isNaN(mx)&&raw>mx?` → 만점(${fmt(mx)}점) 적용`:'');
+      break; }
+    default:
+      text=r.methodText||''; base=num(r.base); score=num(r.score);
+  }
+  return {text, base, score, formula};
+}
+function perfAutoNote(r,m){
+  const c=perfCalc(r), B=fmt(c.base)||'○', R=pct(r.ratio), area=r.area||'해당';
+  const subj=r.subj||subjName(m)||'';
+  const plan=`‘${m.year}학년도 ${m.sem}학기 ${subj}과 평가 계획’`;
+  const tr=r.reason==='전입';
+  switch(r.method){
+    case 'origin': return (tr?`수행평가 실시 이후 전입하여 ‘${area}’ 수행평가를 준비하고 응시할 시간이 부족하고 대체 과제 제시가 어렵다고 판단됨. `:`${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시하지 못함. `)+`이에 원적교에서 응시한 유사 영역의 수행평가 ‘${r.originArea||'   '}’ 점수(${B}점)를 ${R}% 인정하여 부여함.`;
+    case 'other': return (tr?`원적교에 ‘${area}’에 해당하는 수행평가 성적이 없으므로 ${plan}에 의거하여 `:`${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시할 수 없는 상황이므로 ${plan}의 수행평가 미응시자 처리 기준에 의거하여 `)+`당해 학기 내에 응시한 다른 수행평가 ‘${r.otherArea||'   '}’ 점수(${B}점)를 기준점수로 ${R}% 인정점을 부여함.`;
+    case 'avg': return (tr?`원적교에서 ‘${area}’에 해당하는 수행평가를 실시하지 않아 점수가 없으므로, `:`${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시하지 못하였으므로, `)+`해당 학년·해당 교과의 평균을 고려하여 인정점 비율(${R}%)에 따라 인정점을 부여함. (응시(기준)고사: ${r.otherArea||'   '})`;
+    case 'count': return (tr?`전입으로 인해 전입 이전의 본교 학습활동을 수행하지 못하였으므로, 전입 이후 `:'')+`제출한 ${r.unit||'학습지'}의 개수에 ×${fmt(r.per)||'○'}를 계산하여 점수를 부여함.`;
+    default: return '';
+  }
+}
+function examCalc(e, s){
+  const R=pct(e.ratio), base=num(s.base); let score=NaN;
+  if(e.method==='other') score=base*R/100;
+  else if(e.method==='lowest') score=isNaN(base)?NaN:Math.max(0,base-1);
+  else score=num(s.score);
+  return score;
+}
+function examText(e){
+  const R=pct(e.ratio);
+  if(e.method==='other') return `기준점수(${e.reason==='전입'?'본교 ':''}${e.otherExam||'다른 정기시험'})의 ${R}%`;
+  if(e.method==='lowest') return '최하점의 -1점';
+  return e.methodText||'';
+}
+function examAutoNote(e,m){
+  const R=pct(e.ratio), subs=(e.subjects||[]).map(s=>s.subj||subjName(m)).filter(Boolean);
+  const sj=subs.join('·')||'해당', bs=(e.subjects||[]).map(s=>fmt(s.base)+'점').join(', ');
+  const ex=e.exam||'정기시험';
+  if(e.method==='other'){
+    if(e.reason==='전입') return `원적교 ${ex} 점수 중 ${sj} 교과 점수가 없으므로, 본교에서 응시한 ${e.otherExam||'다른 정기시험'} ${sj} 점수(${bs})를 ${R}% 인정하여 부여하고자 함.`;
+    return `${ro(reasonPhrase(e))} 인하여 ${ex}에 결시하였으므로, 당해 학기 내에 응시한 ${e.otherExam||'다른 정기시험'} 점수를 기준점수로 ${R}% 인정점을 부여함.`;
+  }
+  if(e.method==='lowest') return `${ro(reasonPhrase(e))} 인하여 ${ex}에 결시하였으므로, 해당 과목 최하점의 -1점을 부여함.`;
+  return '';
+}
+const noteOf = (o,m,kind)=> o.noteEdited ? (o.note||'') : (kind==='exam'?examAutoNote(o,m):perfAutoNote(o,m));
+function basisOf(kind, o){
+  if(o.basis && String(o.basis).trim()) return o.basis;
+  const g=CFG.reg; if(kind==='perf') return g.bPerf;
+  return ({'전입':g.bExamTrans,'질병결':g.bExamIll,'미인정결':g.bExamUnexc})[o.reason] || g.bExamOther;
+}
+
+/* ===================== 협의록 데이터 ===================== */
+function subjName(m){ return m.subject==='__custom' ? (m.subjectCustom||'').trim() : (m.subject||''); }
+function curSem(){ const mo=new Date().getMonth()+1; return (mo>=8||mo<=2)?'2':'1'; }
+function newMinutes(){ return {year:String(CFG.year), grade:'3', sem:curSem(), subject:'', subjectCustom:'', date:todayISO(), t1:'13:00', t2:'13:20', place:'', teachers:'', none:false, perf:[], exam:[], agendaManual:false, agenda:'', extraTitle:'', extra:''}; }
+const mkey = m=>`minutes|${m.year}|${m.grade}|${m.sem}|${subjName(m)}`;
+function newPerf(m, stu){
+  const r={sid:'',name:'',reason:'전입',reasonText:'',subj:'',area:'',method:'origin',originArea:'',otherArea:'',ratio:'100',base:'',avgAbs:'',avgTake:'',takeScore:'',unit:'학습지',count:'',per:'',max:'100',methodText:'',score:'',note:'',noteEdited:false};
+  const sc=subjCfg(subjName(m)); const areas=sc?split(sc.areas[m.grade]):[]; if(areas.length===1) r.area=areas[0];
+  if(stu){ r.sid=stu.sid; r.name=stu.name; if(REASONS.includes(stu.reason)) r.reason=stu.reason; else if(stu.reason){ r.reason='기타'; r.reasonText=stu.reason; } }
+  applyPerfDefaults(r); return r;
+}
+function applyPerfDefaults(r){
+  if(r.reason==='전입'){ r.method='origin'; r.ratio='100'; }
+  else if(r.reason==='질병결'){ r.method='other'; r.ratio='80'; }
+  else { r.method='other'; r.ratio= r.reason==='인정결'?'100':''; }
+}
+function newExam(m, stu, admin){
+  const e={sid:'',name:'',reason:'전입',reasonText:'',exam:'1차 시험',method:'other',otherExam:'2차 시험',ratio:'100',methodText:'',basis:'',subjects:[{subj:admin?'':'',base:'',score:''}],note:'',noteEdited:false};
+  if(stu){ e.sid=stu.sid; e.name=stu.name; if(REASONS.includes(stu.reason)) e.reason=stu.reason; else if(stu.reason){e.reason='기타';e.reasonText=stu.reason;} }
+  applyExamDefaults(e); return e;
+}
+function applyExamDefaults(e){
+  if(e.reason==='전입'){ e.method='other'; e.ratio='100'; }
+  else if(e.reason==='질병결'){ e.method='other'; e.ratio='80'; }
+  else if(e.reason==='미인정결'){ e.method='lowest'; }
+  else if(e.reason==='인정결'){ e.method='other'; e.ratio='100'; }
+  e.otherExam = e.exam==='1차 시험'?'2차 시험':'1차 시험';
+}
+function titleFor(rows,word){ const tr=rows.some(r=>r.reason==='전입'), ot=rows.some(r=>r.reason!=='전입'); return tr&&!ot?`전입생 ${word}`:(!tr?`${word} 결시생`:`${word} 결시생(전입생 포함)`); }
+function agendaList(m){
+  if(m.agendaManual) return String(m.agenda||'').split('\n').map(s=>s.replace(/^\s*-\s*/,'').trim()).filter(Boolean);
+  const a=[];
+  if(m.none) a.push('인정점 부여 대상 학생 확인');
+  else { if(m.perf.length) a.push(titleFor(m.perf,'수행평가')+' 인정점 부여'); if(m.exam.length) a.push(titleFor(m.exam,'정기시험')+' 인정점 부여'); }
+  if(String(m.extraTitle||'').trim()) a.push(m.extraTitle.trim());
+  return a;
+}
+
+/* ===================== 문서 그리기 ===================== */
+function approvalBox(){
+  const L=split(CFG.approvalLabels); const S=String(CFG.approvalSigns||'').split(',').map(s=>s.trim());
+  if(!L.length) return '';
+  return `<table class="appr"><tr><th class="v" rowspan="2">결<br>재</th>${L.map(l=>`<th>${esc(l)}</th>`).join('')}</tr><tr>${L.map((l,i)=>`<td>${esc(S[i]||'')}</td>`).join('')}</tr></table>`;
+}
+function normPerfRows(m){ return m.perf.map(r=>{ const c=perfCalc(r); return {sid:r.sid,name:r.name,reason:reasonLabel(r),rk:r.reason,subj:r.subj||subjName(m),area:r.area,methodText:c.text,base:c.base,score:c.score,formula:c.formula,note:noteOf(r,m,'perf'),method:r.method,basis:basisOf('perf',r)}; }); }
+function normExamRows(m){ return m.exam.map(e=>({sid:e.sid,name:e.name,reason:reasonLabel(e),rk:e.reason,exam:e.exam,methodText:examText(e),note:noteOf(e,m,'exam'),basis:basisOf('exam',e),subjects:(e.subjects||[]).map(s=>({subj:s.subj||subjName(m),base:num(s.base),score:examCalc(e,s)}))})); }
+
+function perfTableHTML(rows, withBasis){
+  if(!rows.length) return '';
+  // 같은 학생(학번+사유) 묶기, 그 안에서 같은 교과 묶기
+  const groups=[]; rows.forEach(r=>{ const g=groups[groups.length-1]; if(g&&g.sid===r.sid&&g.reason===r.reason&&g.name===r.name) g.rows.push(r); else groups.push({sid:r.sid,name:r.name,reason:r.reason,basis:r.basis,rows:[r]}); });
+  let h=`<table class="it"><tr><th class="nw">평가<br>종류</th><th class="nw">학번</th><th class="nw">이름</th>${withBasis?'<th>인정점수 부여 근거<br>(학업성적관리규정)</th>':''}<th class="nw">인정<br>사유</th><th class="nw">교과</th><th>평가명</th><th>인정점<br>부과 방법</th><th class="nw">기준<br>점수</th><th class="nw">인정점</th></tr>`;
+  let first=true;
+  groups.forEach(g=>{
+    g.rows.forEach((r,i)=>{
+      h+='<tr>';
+      if(first){ h+=`<td class="nw" rowspan="${rows.length}">수행<br>평가</td>`; first=false; }
+      if(i===0){ const rs=g.rows.length; h+=`<td class="nw" rowspan="${rs}">${esc(g.sid)}</td><td class="nw" rowspan="${rs}">${esc(g.name)}</td>`+(withBasis?`<td rowspan="${rs}" class="l">${nl(g.basis)}</td>`:'')+`<td class="nw" rowspan="${rs}">${esc(g.reason)}</td>`; }
+      if(i===0||g.rows[i-1].subj!==r.subj){ let k=i; while(k+1<g.rows.length&&g.rows[k+1].subj===r.subj) k++; h+=`<td class="nw" rowspan="${k-i+1}">${esc(r.subj)}</td>`; }
+      h+=`<td class="ar">${esc(r.area)}</td><td class="mt">${nl(r.methodText)}</td><td class="nw">${fmt(r.base)}</td><td class="nw">${fmt(r.score)}</td></tr>`;
+    });
+  });
+  return h+'</table>';
+}
+function examTableHTML(rows, withBasis){
+  if(!rows.length) return '';
+  let h=`<table class="it"><tr><th class="nw">평가<br>종류</th><th class="nw">학번</th><th class="nw">이름</th>${withBasis?'<th>인정점수 부여 근거<br>(학업성적관리규정)</th>':''}<th class="nw">인정<br>사유</th><th>인정점 부과 방법</th><th class="nw">${withBasis?'해당<br>교과':'교과'}</th><th class="nw">기준<br>점수</th><th class="nw">인정점</th></tr>`;
+  // 같은 시험끼리 평가종류 칸 묶기
+  rows.forEach((e,ei)=>{
+    const subs=e.subjects.length?e.subjects:[{subj:'',base:NaN,score:NaN}]; const rs=subs.length;
+    let examSpan=0; if(ei===0||rows[ei-1].exam!==e.exam){ for(let k=ei;k<rows.length&&rows[k].exam===e.exam;k++) examSpan+=Math.max(1,rows[k].subjects.length); }
+    subs.forEach((s,i)=>{
+      h+='<tr>';
+      if(i===0){ if(examSpan) h+=`<td class="nw" rowspan="${examSpan}">${esc(e.exam).replace(' ','<br>')}</td>`; h+=`<td class="nw" rowspan="${rs}">${esc(e.sid)}</td><td class="nw" rowspan="${rs}">${esc(e.name)}</td>`+(withBasis?`<td rowspan="${rs}" class="l">${nl(e.basis)}</td>`:'')+`<td class="nw" rowspan="${rs}">${esc(e.reason)}</td><td class="mt" rowspan="${rs}">${nl(e.methodText)}</td>`; }
+      h+=`<td class="nw">${esc(s.subj)}</td><td class="nw">${fmt(s.base)}</td><td class="nw">${fmt(s.score)}</td></tr>`;
+    });
+  });
+  return h+'</table>';
+}
+function notesHTML(rows, kind){
+  const multi={}; rows.forEach(r=>multi[r.sid]=(multi[r.sid]||0)+1);
+  return rows.map((r,i)=>{
+    const lab = `${esc(r.name)}(${esc(r.sid)})` + (kind==='perf'&&multi[r.sid]>1?` - ${esc(r.area)}`:'') + (kind==='exam'?` - ${esc(r.exam)}`:'');
+    let s=`<p class="note">${i+1}) ${lab}: ${nl(r.note)}</p>`;
+    if(kind==='perf'&&r.formula) s+=`<p class="formula">- 계산식: ${esc(r.formula)}</p>`;
+    if(kind==='exam'&&r.subjects.length&&r.methodText&&(r.methodText.includes('%'))){ const R=r.methodText.match(/([\d.]+)%/); if(R) s+=r.subjects.map(x=>`<p class="formula">- ${esc(x.subj)}: ${fmt(x.base)}점 × ${num(R[1])/100} = ${fmt(x.score)}점</p>`).join(''); }
+    return s;
+  }).join('');
+}
+function regHTML(parts){ return parts.filter(Boolean).map(t=>`<p>${nl(t)}</p>`).join(''); }
+function minutesRegParts(m){
+  const g=CFG.reg, hasT=[...m.perf,...m.exam].some(r=>r.reason==='전입');
+  const p=[g.r15_1];
+  if(m.exam.length){ p.push(g.r15_1na, g.r15_2h); if(m.exam.some(e=>e.reason==='전입')) p.push(g.r15_2ga6); if(m.exam.some(e=>e.reason==='질병결')) p.push(g.r15_2na1); if(m.exam.some(e=>e.method==='lowest'||e.reason==='미인정결')) p.push(g.r15_2da); }
+  if(m.perf.length) p.push(g.r15_3);
+  if(hasT){ p.push(g.r15_4, g.r16); }
+  return p;
+}
+function perfSectionHTML(m, P){
+  return `<p class="sub">가. 인정점 부여 현황</p>${perfTableHTML(P,false)}<p class="sub">나. 부여 사유</p>${notesHTML(P,'perf')}`;
+}
+function minutesContentHTML(m){
+  const P=normPerfRows(m), E=normExamRows(m); let n=0, o='';
+  const sub=subjName(m);
+  if(m.none){ n++; o+=`<p class="sec">${n}. 인정점 부여 대상 학생 확인</p><p class="ind">- ${esc(m.year)}학년도 ${esc(m.grade)}학년 ${esc(m.sem)}학기 ${esc(sub)} 교과 인정점(정기시험·수행평가) 부여 대상 학생 없음.</p>`; }
+  else{
+    if(P.length){ n++; o+=`<p class="sec">${n}. ${esc(titleFor(m.perf,'수행평가'))} 인정점 부여</p>`+perfSectionHTML(m,P); }
+    if(E.length){ n++; o+=`<p class="sec">${n}. ${esc(titleFor(m.exam,'정기시험'))} 인정점 부여</p><p class="sub">가. 인정점 부여 현황</p>${examTableHTML(E,false)}<p class="sub">나. 부여 사유</p>${notesHTML(E,'exam')}`; }
+  }
+  if(String(m.extra||'').trim()||String(m.extraTitle||'').trim()){ n++; o+=`<p class="sec">${n}. ${esc(m.extraTitle||'기타 협의 내용')}</p><p class="ind">${nl(m.extra)}</p>`; }
+  if(!m.none&&(P.length||E.length)){ n++; o+=`<p class="sec">${n}. 관련 학업성적관리규정</p><div class="reg">${regHTML(minutesRegParts(m))}</div>`; }
+  return o||'<p>&nbsp;</p>';
+}
+function minutesHTML(m){
+  const sub=subjName(m)||'      ';
+  const ag=agendaList(m);
+  const agH = ag.length<=1 ? esc(ag[0]||'') : ag.map(a=>`- ${esc(a)}`).join('<br>');
+  const topic=`${m.year}학년도 ${m.grade}학년 ${m.sem}학기말 성적 처리`;
+  return `<div class="doc">
+  <div class="doc-head"><div class="doc-title">(${esc(sub)})과 교과 협의록</div>${approvalBox()}</div>
+  <table class="t main">
+   <colgroup><col style="width:13%"><col style="width:17%"><col style="width:13%"><col style="width:25%"><col style="width:11%"><col style="width:21%"></colgroup>
+   <tr><th>교 과</th><td>${esc(sub)}</td><th>날 짜</th><td>${fmtDate(m.date)}</td><th>시간</th><td>${esc(m.t1)}~${esc(m.t2)}</td></tr>
+   <tr><th>장 소</th><td>${esc(m.place)}</td><th>참가교사</th><td colspan="3">${esc(m.teachers)}</td></tr>
+   <tr><th>협의 주제</th><td colspan="5">${esc(topic)}</td></tr>
+   <tr><th>1. 논의<br>사항</th><td colspan="5" class="left">${agH}</td></tr>
+   <tr><th>2. 협의<br>내용</th><td colspan="5" class="left content">${minutesContentHTML(m)}</td></tr>
+  </table></div>`;
+}
+function printDocs(htmls){
+  $('#printRoot').innerHTML = htmls.map(h=>`<div class="print-page">${h}</div>`).join('');
+  setTimeout(()=>window.print(),80);
+}
+
+/* ===================== 입력 칸 만들기 ===================== */
+const F=(label,k,val,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><input data-k="${k}" value="${esc(val??'')}" ${attrs}></label>`;
+const SEL=(label,k,val,opts,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><select data-k="${k}" ${attrs}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(val??'')?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
+
+function perfCard(r,i,P,m){
+  const k=`${P}.${i}`;
+  let mf='';
+  if(r.method==='origin') mf = F('원적교 평가(영역)명',k+'.originArea',r.originArea,'placeholder="예: 주장하는 글쓰기"','w2')+F('원적교 점수(기준점수)',k+'.base',r.base,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal"');
+  if(r.method==='other') mf = F('응시한 다른 수행평가명',k+'.otherArea',r.otherArea,'placeholder="예: 배드민턴 언더클리어"','w2')+F('그 점수(기준점수)',k+'.base',r.base,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal" placeholder="예: 80"');
+  if(r.method==='avg') mf = F('결시고사(이 평가) 평균',k+'.avgAbs',r.avgAbs,'inputmode="decimal" placeholder="예: 76"')+F('응시(기준)고사명',k+'.otherArea',r.otherArea,'placeholder="예: 학습과정 포트폴리오"')+F('응시(기준)고사 평균',k+'.avgTake',r.avgTake,'inputmode="decimal" placeholder="예: 98.6"')+F('학생의 응시(기준)고사 점수',k+'.takeScore',r.takeScore,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal"');
+  if(r.method==='count') mf = F('세는 것',k+'.unit',r.unit,'placeholder="학습지"')+F('개수',k+'.count',r.count,'inputmode="decimal"')+F('1개당 점수',k+'.per',r.per,'inputmode="decimal"')+F('만점',k+'.max',r.max,'inputmode="decimal"');
+  if(r.method==='manual') mf = F('인정점 부과 방법(표에 들어갈 문구)',k+'.methodText',r.methodText,'','wall')+F('기준점수',k+'.base',r.base,'inputmode="decimal"')+F('인정점',k+'.score',r.score,'inputmode="decimal"');
+  return `<div class="row-card">
+   <div class="rc-head">수행평가 ${i+1}. <span style="font-weight:normal">${esc(r.name||'')}</span><span class="sp"></span><button class="btn sm" data-act="dupRow" data-p="${P}" data-i="${i}" title="같은 학생의 다른 평가 추가">같은 학생 평가 추가</button><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></div>
+   <div class="grid">
+    ${F('학번',k+'.sid',r.sid,`list="dlRoster" data-sid="${k}" placeholder="예: 3129"`)}
+    ${F('이름',k+'.name',r.name)}
+    ${SEL('인정 사유',k+'.reason',r.reason,REASONS,`data-rr data-def="${k}"`)}
+    ${r.reason==='기타'?F('사유 직접 입력',k+'.reasonText',r.reasonText):''}
+    ${F('교과',k+'.subj',r.subj,`list="dlSubjects" placeholder="${esc(subjName(m)||'교과')}"`)}
+    ${F('평가명(본교)',k+'.area',r.area,'list="dlAreas" placeholder="예: 국어 탐구 포트폴리오"','w2')}
+    ${SEL('인정점 부과 방법',k+'.method',r.method,PERF_METHODS,'data-rr','w2')}
+    ${mf}
+   </div>
+   <div class="calc" data-calc="perf" data-path="${k}"></div>
+   <div class="note-h">부여 사유 (자동 작성 · 고쳐 써도 됩니다) <button class="btn sm" data-act="resetNote" data-path="${k}">자동 문장으로 되돌리기</button></div>
+   <textarea data-k="${k}.note" data-note="${k}" data-kind="perf" rows="3"></textarea>
+  </div>`;
+}
+function examCard(e,i,P,m,admin){
+  const k=`${P}.${i}`;
+  let mf='';
+  if(e.method==='other') mf=SEL('기준이 되는 시험',k+'.otherExam',e.otherExam,EXAMS)+F('인정 비율(%)',k+'.ratio',e.ratio,'inputmode="decimal"');
+  if(e.method==='manual') mf=F('인정점 부과 방법(표에 들어갈 문구)',k+'.methodText',e.methodText,'','wall');
+  const subs=(e.subjects||[]).map((s,j)=>`<div class="sr">
+     ${F('교과',`${k}.subjects.${j}.subj`,s.subj,`list="dlSubjects" placeholder="${esc(admin?'예: 영어':(subjName(m)||'교과'))}"`)}
+     ${F(e.method==='lowest'?'해당 과목 최하점':'기준점수',`${k}.subjects.${j}.base`,s.base,'inputmode="decimal"')}
+     ${e.method==='manual'?F('인정점',`${k}.subjects.${j}.score`,s.score,'inputmode="decimal"'):`<label class="f"><span>인정점</span><input disabled data-calc="examScore" data-path="${k}" data-j="${j}"></label>`}
+     <button class="btn sm del" data-act="delSub" data-path="${k}" data-j="${j}">×</button></div>`).join('');
+  return `<div class="row-card exam">
+   <div class="rc-head">정기시험 ${i+1}. <span style="font-weight:normal">${esc(e.name||'')}</span><span class="sp"></span><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></div>
+   <div class="grid">
+    ${F('학번',k+'.sid',e.sid,`list="dlRoster" data-sid="${k}" data-kind="exam"`)}
+    ${F('이름',k+'.name',e.name)}
+    ${SEL('인정 사유',k+'.reason',e.reason,REASONS,`data-rr data-def="${k}" data-kind="exam"`)}
+    ${e.reason==='기타'?F('사유 직접 입력',k+'.reasonText',e.reasonText):''}
+    ${SEL('결시한 시험',k+'.exam',e.exam,EXAMS,`data-rr data-exam="${k}"`)}
+    ${SEL('인정점 부과 방법',k+'.method',e.method,EXAM_METHODS,'data-rr','w2')}
+    ${mf}
+   </div>
+   <div class="sub-rows">${subs}</div>
+   <button class="btn sm" data-act="addSub" data-path="${k}">+ 교과 추가</button>
+   ${admin?`<details style="margin-top:6px"><summary style="font-weight:normal;font-size:13px">부여표 '근거' 칸 직접 입력 (비우면 사유에 맞게 자동)</summary><textarea data-k="${k}.basis" rows="3">${esc(e.basis||'')}</textarea></details>`:''}
+   <div class="note-h">부여 사유 (자동 작성 · 고쳐 써도 됩니다) <button class="btn sm" data-act="resetNote" data-path="${k}">자동 문장으로 되돌리기</button></div>
+   <textarea data-k="${k}.note" data-note="${k}" data-kind="exam" rows="2"></textarea>
+  </div>`;
+}
+
+/* ===================== 화면 상태 ===================== */
+let VIEW = IS_ADMIN ? 'admin' : 'teacher';
+let M = null;            // 교사: 작성 중인 협의록
+let EXIST = null;        // 교사: 서버에 이미 제출된 협의록
+let AD = {tab:'status', year:'', grade:'3', sem:'', minutes:[], loaded:false, exams:[], examsLoaded:false, viewKey:'', gen:''};
+let CE = null;           // 설정 편집본
+let CE_G = '3';
+const root = ()=> VIEW==='teacher' ? M : (AD.tab==='settings' ? CE : AD);
+const ctxM = ()=> VIEW==='teacher' ? M : {year:AD.year, grade:AD.grade, sem:AD.sem, subject:''};
+
+function saveDraft(){ if(VIEW==='teacher'&&M) localStorage.setItem('kc_draft', JSON.stringify(M)); }
+const refresh = debounce(()=>{ updateComputed(); updatePreview(); saveDraft(); }, 120);
+
+function updateComputed(){
+  const R=root(), m=ctxM();
+  $$('[data-calc="perf"]').forEach(el=>{
+    const r=getPath(R,el.dataset.path); if(!r) return; const c=perfCalc(r);
+    const ok=!isNaN(c.score)&&isFinite(c.score);
+    el.innerHTML = `표에 들어갈 부과 방법: <b>${nl(c.text)||'-'}</b><br>기준점수 <b>${fmt(c.base)||'-'}</b> → 인정점 <b>${ok?fmt(c.score):'<span class="err">값을 입력하세요</span>'}</b>`+(c.formula?`<br><span style="color:#5f6b7a">계산식: ${esc(c.formula)}</span>`:'');
+  });
+  $$('[data-calc="examScore"]').forEach(el=>{ const e=getPath(R,el.dataset.path); if(!e) return; el.value=fmt(examCalc(e,e.subjects[+el.dataset.j]||{})); });
+  $$('textarea[data-note]').forEach(ta=>{ const o=getPath(R,ta.dataset.note); if(!o) return; if(!o.noteEdited && document.activeElement!==ta) ta.value=noteOf(o,m,ta.dataset.kind); else if(o.noteEdited && document.activeElement!==ta) ta.value=o.note||''; });
+}
+function updatePreview(){
+  if(VIEW==='teacher'){ const pv=$('#pv'); if(pv) pv.innerHTML=minutesHTML(M); const ag=$('#agAuto'); if(ag) ag.textContent=agendaList(M).map(a=>'- '+a).join('\n')||'(학생을 추가하면 자동으로 채워집니다)'; }
+  else if(AD.tab==='exams'){ const pv=$('#pv'); if(pv) pv.innerHTML=examPreviewHTML(); }
+}
+
+/* ===================== 교사 화면 ===================== */
+function renderTeacher(){
+  const m=M, sub=subjName(m);
+  setDatalists(m.grade, sub);
+  const subjOpts=[['','— 교과 선택 —'],...CFG.subjects.map(s=>s.name),['__custom','직접 입력']];
+  const ros=rosterOf(m.grade);
+  let banner='';
+  if(!API_URL) banner=`<div class="banner warn">서버 주소가 없습니다. <b>평가부장에게 받은 링크로 접속</b>해야 ‘보내기’가 됩니다. (작성·인쇄는 지금도 됩니다)</div>`;
+  else if(API_URL==='demo') banner=`<div class="banner info">연습 모드입니다. 보낸 내용은 이 컴퓨터에만 저장됩니다.</div>`;
+  const ex = EXIST ? `<div class="banner ok">이 교과의 협의록이 이미 제출되어 있습니다 (${esc(lt(EXIST.submittedAt))}). <button class="btn sm" data-act="loadExist">불러와서 고치기</button> 다시 보내면 새 내용으로 바뀝니다.</div>`:'';
+  $('#app').innerHTML = `<div class="layout"><section>
+   ${banner}
+   <div class="card"><h2>① 기본 정보</h2>
+    <div class="grid">
+     ${F('학년도',`year`,m.year,'inputmode="numeric" data-chk')}
+     ${SEL('학년','grade',m.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-chk')}
+     ${SEL('학기','sem',m.sem,[['1','1학기'],['2','2학기']],'data-chk')}
+     ${SEL('교과','subject',m.subject,subjOpts,'data-rr data-chk data-subj')}
+     ${m.subject==='__custom'?F('교과명 입력','subjectCustom',m.subjectCustom,'data-chk'):''}
+     ${F('날짜','date',m.date,'type="date"')}
+     ${F('시작 시간','t1',m.t1,'type="time"')}
+     ${F('끝 시간','t2',m.t2,'type="time"')}
+     ${F('장소','place',m.place,'placeholder="예: 307호"')}
+     ${F('참가교사','teachers',m.teachers,'placeholder="예: 홍길동, 김철수"','w2')}
+    </div>
+    <div id="exist">${ex}</div>
+   </div>
+   <div class="card"><h2>② 인정점 부여 대상</h2>
+    <label class="chk"><input type="checkbox" data-k="none" data-rr ${m.none?'checked':''}> 이 교과는 이번 학기 인정점 부여 대상 학생이 <b>없음</b></label>
+    ${m.none?'<p class="hint">‘대상 없음’ 협의록이 만들어집니다. 그대로 보내 주세요.</p>':''}
+   </div>
+   ${m.none?'':`
+   <div class="card"><h2>③ 수행평가 인정점 <small>학생마다, 평가마다 한 칸씩</small></h2>
+    ${ros.length?`<div class="hint">명단에서 바로 추가:</div><div class="chips">${ros.map(s=>`<button class="chip" data-act="addPerfStu" data-sid="${esc(s.sid)}">＋ ${esc(s.name)} (${esc(s.sid)} · ${esc(s.reason||'')})</button>`).join('')}</div>`:''}
+    ${m.perf.map((r,i)=>perfCard(r,i,'perf',m)).join('')}
+    <button class="btn" data-act="addPerf">+ 학생 직접 추가</button>
+   </div>
+   <div class="card"><h2>④ 정기시험 인정점 <small>교과에서 협의할 내용이 있을 때만 (예: 전입생 정기시험)</small></h2>
+    ${m.exam.map((e,i)=>examCard(e,i,'exam',m,false)).join('')}
+    <button class="btn" data-act="addExam">+ 정기시험 인정점 추가</button>
+   </div>`}
+   <div class="card"><h2>⑤ 논의 사항 · 기타</h2>
+    <div class="hint">논의 사항(자동):</div><pre id="agAuto" style="margin:2px 0 8px;font-family:inherit;white-space:pre-wrap;background:#f6f7f9;padding:6px 10px;border-radius:6px"></pre>
+    <label class="chk"><input type="checkbox" data-k="agendaManual" data-rr ${m.agendaManual?'checked':''}> 논의 사항 직접 쓰기</label>
+    ${m.agendaManual?`<textarea data-k="agenda" rows="3" placeholder="한 줄에 하나씩">${esc(m.agenda)}</textarea>`:''}
+    <div class="grid" style="margin-top:8px">${F('기타 협의 제목 (선택)','extraTitle',m.extraTitle,'placeholder="예: 2학기 평가 결과 분석"','wall')}</div>
+    <label class="f wall" style="margin-top:6px"><span>기타 협의 내용 (선택)</span><textarea data-k="extra" rows="3">${esc(m.extra)}</textarea></label>
+   </div>
+   <div class="actions">
+    <button class="btn" data-act="printM">🖨 인쇄</button>
+    <button class="btn pri" data-act="submitM" ${API_URL?'':'disabled'}>📨 확인했습니다 · 평가부장에게 보내기</button>
+    <span style="flex:1"></span>
+    <button class="btn del" data-act="resetM">새로 작성</button>
+   </div>
+  </section>
+  <section class="preview-wrap"><div class="page" id="pv"></div></section></div>`;
+  updateComputed(); updatePreview();
+}
+async function checkExisting(){
+  EXIST=null; const box=$('#exist'); if(box) box.innerHTML='';
+  if(!API_URL||!subjName(M)) return;
+  try{ const j=await api('get',{key:mkey(M)}); if(j.value){ EXIST=j.value; if(VIEW==='teacher') renderTeacher(); } }catch(e){}
+}
+function validateMinutes(m){
+  const errs=[], warns=[];
+  if(!subjName(m)) errs.push('교과를 선택하세요.');
+  if(!m.date) errs.push('날짜를 입력하세요.');
+  if(!String(m.teachers).trim()) warns.push('참가교사가 비어 있습니다.');
+  if(!m.none && !m.perf.length && !m.exam.length) errs.push('학생을 추가하거나 ‘대상 없음’에 체크하세요.');
+  if(!m.none){
+    m.perf.forEach((r,i)=>{ const c=perfCalc(r); if(!r.sid||!r.name) errs.push(`수행평가 ${i+1}: 학번·이름을 입력하세요.`); if(!r.area) warns.push(`수행평가 ${i+1}: 평가명이 비어 있습니다.`); if(isNaN(c.score)||!isFinite(c.score)) errs.push(`수행평가 ${i+1}(${r.name||''}): 인정점이 계산되지 않았습니다.`); if(r.sid&&rosterOf(m.grade).length&&!findStu(m.grade,r.sid)) warns.push(`수행평가 ${i+1}: 학번 ${r.sid}은(는) 평가부 명단에 없습니다. 학번을 확인하세요.`); else if(r.sid){ const s=findStu(m.grade,r.sid); if(s&&s.name!==r.name) warns.push(`학번 ${r.sid}: 명단의 이름(${s.name})과 다릅니다.`); } });
+    m.exam.forEach((e,i)=>{ if(!e.sid||!e.name) errs.push(`정기시험 ${i+1}: 학번·이름을 입력하세요.`); e.subjects.forEach(s=>{ if(isNaN(examCalc(e,s))) errs.push(`정기시험 ${i+1}(${e.name||''}): 점수를 입력하세요.`); }); if(e.sid&&rosterOf(m.grade).length&&!findStu(m.grade,e.sid)) warns.push(`정기시험 ${i+1}: 학번 ${e.sid}은(는) 평가부 명단에 없습니다.`); });
+  }
+  return {errs,warns};
+}
+
+/* ===================== 평가부장 화면 ===================== */
+function adminHead(){
+  return `<div class="card" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+   ${F('학년도','year',AD.year,'inputmode="numeric" data-rr style="width:90px"')}
+   ${SEL('학년','grade',AD.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr')}
+   ${SEL('학기','sem',AD.sem,[['1','1학기'],['2','2학기']],'data-rr')}
+   <span class="hint">학년·학기를 바꾸면 그 학년 자료를 보여 줍니다.</span></div>`;
+}
+const tabsHTML = ()=>`<div class="tabs">${[['status','① 제출 현황'],['exams','② 정기시험 결시생'],['gen','③ 인정점 부여표'],['settings','④ 설정']].map(([k,t])=>`<div class="tab ${AD.tab===k?'on':''}" data-act="tab" data-t="${k}">${t}</div>`).join('')}</div>`;
+const prefixAD = ()=>`minutes|${AD.year}|${AD.grade}|${AD.sem}|`;
+const examKey = ()=>`exams|${AD.year}|${AD.grade}|${AD.sem}`;
+
+async function loadAdminData(force){
+  if(!API_URL) return;
+  try{
+    const [a,b]=await Promise.all([api('list',{prefix:prefixAD()}), api('get',{key:examKey()})]);
+    AD.minutes=a.items.map(x=>({key:x.key, m:x.value, updated:x.updated})).filter(x=>x.m);
+    AD.exams=(b.value&&b.value.exams)||[]; AD.loaded=true; AD.examsLoaded=true;
+  }catch(e){ toast('불러오기 실패: '+e.message,4000); }
+}
+function renderAdmin(){
+  const noApi = !API_URL ? `<div class="banner warn">아직 서버(구글 시트)가 연결되지 않았습니다. <b>④ 설정</b>에서 Apps Script 주소를 넣어 주세요. 먼저 둘러보려면 주소 칸에 <code>demo</code>를 넣으면 연습 모드로 동작합니다.</div>`:'';
+  let body='';
+  if(AD.tab==='status') body=adminStatusHTML();
+  if(AD.tab==='exams') body=adminExamsHTML();
+  if(AD.tab==='gen') body=adminGenHTML();
+  if(AD.tab==='settings') body=adminSettingsHTML();
+  $('#app').innerHTML = noApi + (AD.tab!=='settings'?adminHead():'') + tabsHTML() + body;
+  if(AD.tab==='exams'){ setDatalists(AD.grade,''); updateComputed(); updatePreview(); }
+}
+function subjectOrder(){ const names=CFG.subjects.map(s=>s.name); AD.minutes.forEach(x=>{ const s=subjName(x.m); if(!names.includes(s)) names.push(s); }); return names; }
+function adminStatusHTML(){
+  const byS={}; AD.minutes.forEach(x=>byS[subjName(x.m)]=x);
+  const names=subjectOrder();
+  const done=names.filter(n=>byS[n]).length;
+  const rows=names.map(n=>{ const x=byS[n]; if(!x) return `<tr><td>${esc(n)}</td><td class="st-no">미제출</td><td></td><td></td><td></td><td></td></tr>`;
+    const m=x.m; const cnt=m.none?'대상 없음':`수행 ${m.perf.length}건 · 정기 ${m.exam.length}건`;
+    return `<tr><td><b>${esc(n)}</b></td><td class="st-ok">제출</td><td>${esc(lt(m.submittedAt||x.updated))}</td><td>${esc(m.teachers)}</td><td>${cnt}</td><td><button class="btn sm" data-act="viewM" data-key="${esc(x.key)}">보기</button> <button class="btn sm" data-act="printOne" data-key="${esc(x.key)}">인쇄</button> <button class="btn sm del" data-act="delM" data-key="${esc(x.key)}">삭제</button></td></tr>`; }).join('');
+  const view = AD.viewKey ? AD.minutes.find(x=>x.key===AD.viewKey) : null;
+  return `<div class="card"><h2>${esc(AD.year)}학년도 ${esc(AD.grade)}학년 ${esc(AD.sem)}학기 교과협의록 제출 현황 <small>${done} / ${names.length} 교과 제출</small></h2>
+   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 새로고침</button><button class="btn pri" data-act="printAll" ${AD.minutes.length?'':'disabled'}>🖨 제출된 협의록 모두 인쇄</button></div>
+   <p class="hint">설정에 등록된 교과 중 협의를 하지 않는 교과는 무시하셔도 됩니다. 교과 목록은 ④ 설정에서 고칠 수 있습니다.</p>
+   <table class="lst"><tr><th>교과</th><th>상태</th><th>제출 시각</th><th>참가교사</th><th>내용</th><th></th></tr>${rows}</table></div>
+   ${view?`<div class="card"><h2>${esc(subjName(view.m))} 협의록 미리보기 <button class="btn sm" data-act="printOne" data-key="${esc(view.key)}">인쇄</button> <button class="btn sm" data-act="closeView">닫기</button></h2><div style="overflow:auto"><div class="page">${minutesHTML(view.m)}</div></div></div>`:''}`;
+}
+function examPreviewHTML(){
+  const m=ctxM(); const fromMin=collectExamRows(false);
+  const own=AD.exams.map(e=>normExamOne(e,m));
+  return `<div class="doc gdoc"><p class="gsec">1. 정기시험 (부여표 미리보기)</p>${examTableHTML([...own,...fromMin],true)||'<p>해당 없음</p>'}</div>`;
+}
+function normExamOne(e,m){ return {sid:e.sid,name:e.name,reason:reasonLabel(e),rk:e.reason,exam:e.exam,methodText:examText(e),basis:basisOf('exam',e),note:noteOf(e,m,'exam'),subjects:(e.subjects||[]).map(s=>({subj:s.subj||subjName(m),base:num(s.base),score:examCalc(e,s)}))}; }
+function collectExamRows(){ const out=[]; sortedMinutes().forEach(x=>{ if(!x.m.none) x.m.exam.forEach(e=>out.push(normExamOne(e,x.m))); }); return out; }
+function sortedMinutes(){ const ord=subjectOrder(); return [...AD.minutes].sort((a,b)=>ord.indexOf(subjName(a.m))-ord.indexOf(subjName(b.m))); }
+function adminExamsHTML(){
+  const m=ctxM(); const ros=rosterOf(AD.grade);
+  const fromMin=collectExamRows();
+  return `<div class="layout"><section>
+   <div class="card"><h2>정기시험 결시생 인정점 <small>질병결·미인정결 등 평가부에서 직접 입력</small></h2>
+    <p class="hint">교과 협의록에 들어 있는 정기시험 인정점(예: 전입생)은 자동으로 부여표에 들어가니 여기서 다시 넣지 않아도 됩니다.</p>
+    ${ros.length?`<div class="chips">${ros.map(s=>`<button class="chip" data-act="addExamStu" data-sid="${esc(s.sid)}">＋ ${esc(s.name)} (${esc(s.sid)} · ${esc(s.reason||'')})</button>`).join('')}</div>`:''}
+    ${AD.exams.map((e,i)=>examCard(e,i,'exams',m,true)).join('')}
+    <button class="btn" data-act="addExamAD">+ 학생 직접 추가</button>
+   </div>
+   ${fromMin.length?`<div class="card"><h2>교과 협의록에서 온 정기시험 인정점 <small>(자동 포함)</small></h2>${fromMin.map(e=>`<div>· ${esc(e.name)}(${esc(e.sid)}) ${esc(e.exam)} ${e.subjects.map(s=>esc(s.subj)+' '+fmt(s.score)).join(', ')}</div>`).join('')}</div>`:''}
+   <div class="actions"><button class="btn pri" data-act="saveExams">💾 저장</button></div>
+  </section><section class="preview-wrap"><div class="page" id="pv"></div></section></div>`;
+}
+function adminGenHTML(){
+  const byS={}; AD.minutes.forEach(x=>byS[subjName(x.m)]=1);
+  const missing=CFG.subjects.map(s=>s.name).filter(n=>!byS[n]);
+  return `<div class="card"><h2>학기말 인정점 부여표</h2>
+   <p class="hint">제출된 교과 협의록 ${AD.minutes.length}건과 ② 정기시험 결시생 입력 내용을 모아 부여표를 만듭니다.</p>
+   ${missing.length?`<div class="banner warn">아직 제출하지 않은 교과: ${missing.map(esc).join(', ')}<br>(협의 대상이 아닌 교과라면 그냥 진행하셔도 됩니다.)</div>`:''}
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 최신 자료 불러오기</button><button class="btn pri" data-act="genTable">📋 학기말 인정점 부여표 생성</button>${AD.gen?'<button class="btn ok" data-act="printGen">🖨 부여표 인쇄</button>':''}</div>
+  </div>
+  ${AD.gen?`<div style="overflow:auto"><div class="page">${AD.gen}</div></div>`:''}`;
+}
+function generateTableHTML(){
+  const ctx=ctxM(); const g=CFG.reg;
+  const ex=[...AD.exams.map(e=>normExamOne(e,ctx)), ...collectExamRows()];
+  // 수행평가: 학번 순, 같은 학번 안에서는 교과 순서
+  const ord=subjectOrder(); const perf=[];
+  sortedMinutes().forEach(x=>{ if(!x.m.none) normPerfRows(x.m).forEach(r=>perf.push(r)); });
+  const subjIdx=s=>{ const i=ord.indexOf(s); return i<0?999:i; };
+  perf.forEach((r,i)=>r._i=i);
+  perf.sort((a,b)=>String(a.sid).localeCompare(String(b.sid),undefined,{numeric:true})||subjIdx(a.subj)-subjIdx(b.subj)||a._i-b._i);
+  const hasT=ex.some(e=>e.rk==='전입');
+  const regParts=[g.r15_1, g.r15_1na];
+  if(ex.length){ regParts.push(g.r15_2h); if(hasT) regParts.push(g.r15_2ga6); if(ex.some(e=>e.rk==='질병결')) regParts.push(g.r15_2na1); if(ex.some(e=>e.rk==='미인정결'||e.methodText==='최하점의 -1점')) regParts.push(g.r15_2da); }
+  if(hasT||perf.some(r=>r.rk==='전입')) regParts.push(g.r16);
+  // 교과 협의록 발췌
+  const excerpts = sortedMinutes().filter(x=>!x.m.none&&x.m.perf.length).map(x=>{ const P=normPerfRows(x.m); return `<p class="exname">&lt;${esc(subjName(x.m))}&gt;</p><div class="exbox"><div class="content"><p class="sec">1. ${esc(titleFor(x.m.perf,'수행평가'))} 인정점 부여</p>${perfSectionHTML(x.m,P)}</div></div>`; }).join('');
+  return `<div class="doc gdoc">
+   <p class="gtitle">[${esc(AD.year)}학년도 ${esc(AD.sem)}학기 ${esc(AD.grade)}학년 정기시험 및 수행평가 인정점 부여]</p>
+   <p class="gsec">1. 정기시험</p>${ex.length?examTableHTML(ex,true):'<p>해당 없음</p>'}
+   ${ex.length?`<p class="gsub">[관련 학업성적관리규정]</p><div class="reg">${regHTML(regParts)}</div>`:''}
+   <p class="gsec">2. 수행평가</p>${perf.length?perfTableHTML(perf,true):'<p>해당 없음</p>'}
+   ${excerpts?`<p class="gsub">[교과협의회 협의록 중 수행평가 인정점 관련 내용]</p>${excerpts}`:''}
+  </div>`;
+}
+
+/* ----- 설정 ----- */
+function startSettings(){
+  CE = clone(CFG);
+  CE.rosterText = {}; ['1','2','3'].forEach(g=>CE.rosterText[g]=(CFG.roster[g]||[]).map(s=>[s.sid,s.name,s.reason].filter(Boolean).join(' ')).join('\n'));
+  CE.apiUrl = API_URL;
+}
+function adminSettingsHTML(){
+  if(!CE) startSettings();
+  const base=location.origin+location.pathname;
+  const tLink = API_URL ? base+'?api='+encodeURIComponent(API_URL) : '';
+  const aLink = API_URL ? tLink+'&admin' : '';
+  return `<div class="card"><h2>서버(구글 시트) 연결</h2>
+    <div class="grid">${F('Apps Script 웹 앱 주소','apiUrl',CE.apiUrl,'placeholder="https://script.google.com/macros/s/…/exec"','wall')}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn pri" data-act="connect">연결하기</button><span class="hint" id="connState"></span></div>
+    ${tLink?`<div class="banner info" style="margin-top:10px"><b>교사용 링크</b> (교과 선생님들께 이 주소를 보내 주세요)<br><code id="tLink">${esc(tLink)}</code> <button class="btn sm" data-act="copy" data-v="${esc(tLink)}">복사</button><br><br><b>평가부장용 링크</b> (본인만 사용)<br><code>${esc(aLink)}</code> <button class="btn sm" data-act="copy" data-v="${esc(aLink)}">복사</button></div>`:''}
+    <details><summary>처음 설정하는 방법 (구글 시트 + Apps Script)</summary>
+     <ol class="guide">
+      <li>구글 드라이브에서 <b>새 구글 시트</b>를 만듭니다. (이름 예: 교과협의록 저장소)</li>
+      <li>시트 메뉴 <b>확장 프로그램 → Apps Script</b>를 누릅니다.</li>
+      <li>열린 편집기의 내용을 모두 지우고, 함께 받은 <b>Code.gs</b> 내용을 그대로 붙여 넣은 뒤 💾 저장합니다.</li>
+      <li>오른쪽 위 <b>배포 → 새 배포</b> → 톱니바퀴에서 <b>웹 앱</b> 선택 → 실행 사용자: <b>나</b>, 액세스 권한: <b>모든 사용자</b> → 배포.</li>
+      <li>권한 승인 창이 뜨면 본인 계정 선택 → ‘고급’ → ‘(안전하지 않은 페이지)로 이동’ → 허용.</li>
+      <li>나오는 <b>웹 앱 URL</b>(…/exec 로 끝남)을 복사해 위 칸에 붙여 넣고 <b>연결하기</b>.</li>
+      <li>아래 학생 명단·교과를 확인하고 <b>설정 저장</b> → 교사용 링크를 선생님들께 보냅니다.</li>
+     </ol>
+     <p class="hint">Code.gs를 고친 뒤에는 배포 → <b>배포 관리</b> → 수정(연필) → 버전: 새 버전 → 배포 해야 반영됩니다. (주소는 그대로)</p>
+    </details>
+   </div>
+   <div class="card"><h2>기본 정보</h2><div class="grid">
+    ${F('학년도(기본값)','year',CE.year,'inputmode="numeric"')}
+    ${F('결재란 칸 (쉼표로)','approvalLabels',CE.approvalLabels,'placeholder="부장, 교감"')}
+    ${F('결재란 아래 칸 글자 (쉼표로)','approvalSigns',CE.approvalSigns,'placeholder=", 전결"')}
+   </div></div>
+   <div class="card"><h2>학년별 명단 · 교과 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-ceg')}</h2>
+    <label class="f wall"><span><b>${CE_G}학년 인정점 대상 학생</b> — 한 줄에 “학번 이름 사유” (사유: 전입, 질병결, 미인정결, 인정결 또는 직접)</span>
+    <textarea data-k="rosterText.${CE_G}" rows="6" placeholder="3101 홍길동 전입&#10;3202 김철수 질병결">${esc(CE.rosterText[CE_G]||'')}</textarea></label>
+    <p class="hint">교사가 학번을 넣으면 이름·사유가 자동으로 채워지고, 명단에 없는 학번이면 경고합니다.</p>
+    <table class="set-tbl" style="margin-top:10px"><tr><th style="width:16%">교과</th><th style="width:28%">${CE_G}학년 참가교사 (기본값)</th><th>${CE_G}학년 수행평가 영역 (쉼표로)</th><th style="width:44px"></th></tr>
+     ${CE.subjects.map((s,i)=>`<tr><td><input data-k="subjects.${i}.name" value="${esc(s.name)}"></td><td><input data-k="subjects.${i}.teachers.${CE_G}" value="${esc(s.teachers[CE_G]||'')}"></td><td><input data-k="subjects.${i}.areas.${CE_G}" value="${esc(s.areas[CE_G]||'')}"></td><td><button class="btn sm del" data-act="delSubj" data-i="${i}">×</button></td></tr>`).join('')}
+    </table>
+    <button class="btn sm" data-act="addSubj" style="margin-top:6px">+ 교과 추가</button>
+   </div>
+   <div class="card"><details><summary>학업성적관리규정 문구 고치기</summary>
+    ${Object.keys(REG_DEFAULT).map(k=>`<label class="f wall" style="margin:8px 0"><span>${esc(REG_LABELS[k]||k)}</span><textarea data-k="reg.${k}" rows="${Math.min(7,String(CE.reg[k]||'').split('\n').length+1)}">${esc(CE.reg[k]||'')}</textarea></label>`).join('')}
+    <button class="btn sm" data-act="resetReg">기본 문구로 되돌리기</button>
+   </details></div>
+   <div class="actions"><button class="btn pri" data-act="saveCfg">💾 설정 저장</button></div>`;
+}
+function parseRoster(t){ return String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ const p=l.split(/[\s,\t]+/); return {sid:p[0]||'', name:p[1]||'', reason:p.slice(2).join(' ')||''}; }).filter(s=>s.sid); }
+
+/* ===================== 행동 ===================== */
+const ACT = {
+  addPerf(){ M.perf.push(newPerf(M)); rerender(); },
+  addPerfStu(d){ M.perf.push(newPerf(M, findStu(M.grade,d.sid))); rerender(); },
+  addExam(){ const e=newExam(M); M.exam.push(e); rerender(); },
+  addExamStu(d){ AD.exams.push(newExam(ctxM(), findStu(AD.grade,d.sid), true)); rerender(); },
+  addExamAD(){ AD.exams.push(newExam(ctxM(),null,true)); rerender(); },
+  delRow(d){ const arr=getPath(root(),d.p); if(confirm('이 칸을 삭제할까요?')){ arr.splice(+d.i,1); rerender(); } },
+  dupRow(d){ const arr=getPath(root(),d.p); const o=arr[+d.i]; const n=newPerf(M,{sid:o.sid,name:o.name,reason:o.reason==='기타'?o.reasonText:o.reason}); n.subj=o.subj; n.area=''; arr.splice(+d.i+1,0,n); rerender(); },
+  addSub(d){ getPath(root(),d.path).subjects.push({subj:'',base:'',score:''}); rerender(); },
+  delSub(d){ const e=getPath(root(),d.path); if(e.subjects.length>1){ e.subjects.splice(+d.j,1); rerender(); } },
+  resetNote(d){ const o=getPath(root(),d.path); o.noteEdited=false; o.note=''; updateComputed(); updatePreview(); saveDraft(); },
+  printM(){ printDocs([minutesHTML(M)]); },
+  async submitM(){
+    const {errs,warns}=validateMinutes(M);
+    if(errs.length){ alert('보내기 전에 확인해 주세요.\n\n- '+errs.join('\n- ')); return; }
+    if(warns.length && !confirm('확인할 점이 있습니다.\n\n- '+warns.join('\n- ')+'\n\n그래도 보낼까요?')) return;
+    if(!confirm(`${subjName(M)} 협의록을 평가부장에게 보냅니다.${EXIST?'\n(이미 제출된 내용은 새 내용으로 바뀝니다.)':''}`)) return;
+    const b=$('[data-act="submitM"]'); if(b){ b.disabled=true; b.textContent='보내는 중…'; }
+    try{ const v=clone(M); v.submittedAt=new Date().toISOString(); v.subject=subjName(M); v.subjectCustom=''; await api('submit',{key:mkey(M), value:v}); EXIST=v; toast('보냈습니다. 감사합니다!'); renderTeacher(); }
+    catch(e){ alert('보내지 못했습니다: '+e.message); if(b){ b.disabled=false; b.textContent='📨 확인했습니다 · 평가부장에게 보내기'; } }
+  },
+  loadExist(){ if(!EXIST) return; const v=clone(EXIST); if(!CFG.subjects.some(s=>s.name===v.subject)){ v.subjectCustom=v.subject; v.subject='__custom'; } M=Object.assign(newMinutes(),v); delete M.submittedAt; rerender(); toast('제출된 내용을 불러왔습니다.'); },
+  resetM(){ if(confirm('작성 중인 내용을 모두 지우고 새로 작성할까요?')){ const keep={grade:M.grade,sem:M.sem,year:M.year}; M=Object.assign(newMinutes(),keep); rerender(); } },
+  tab(d){ AD.tab=d.t; if(d.t==='settings') startSettings(); if(d.t==='gen') AD.gen=''; rerender(); },
+  async reload(){ await loadAdminData(true); AD.gen=''; rerender(); toast('최신 자료를 불러왔습니다.'); },
+  viewM(d){ AD.viewKey=d.key; rerender(); },
+  closeView(){ AD.viewKey=''; rerender(); },
+  printOne(d){ const x=AD.minutes.find(x=>x.key===d.key); if(x) printDocs([minutesHTML(x.m)]); },
+  printAll(){ printDocs(sortedMinutes().map(x=>minutesHTML(x.m))); },
+  async delM(d){ const x=AD.minutes.find(x=>x.key===d.key); if(!x||!confirm(`${subjName(x.m)} 협의록을 삭제할까요? (되돌릴 수 없습니다)`)) return; try{ await api('remove',{key:d.key}); await loadAdminData(); AD.viewKey=''; rerender(); toast('삭제했습니다.'); }catch(e){ alert(e.message); } },
+  async saveExams(){ try{ await api('set',{key:examKey(), value:{exams:AD.exams, savedAt:new Date().toISOString()}}); toast('저장했습니다.'); }catch(e){ alert('저장 실패: '+e.message); } },
+  async genTable(){ await loadAdminData(); AD.gen=generateTableHTML(); rerender(); },
+  printGen(){ printDocs([AD.gen]); },
+  async connect(){
+    const u=String(CE.apiUrl||'').trim(); const st=$('#connState');
+    if(!u){ alert('주소를 넣어 주세요.'); return; }
+    if(u!=='demo' && !/^https:\/\/script\.google(usercontent)?\.com\//.test(u)){ alert('Apps Script 웹 앱 주소(https://script.google.com/macros/s/…/exec)를 넣어 주세요.'); return; }
+    const old=API_URL; API_URL=u; if(st) st.textContent='연결 확인 중…';
+    try{ await api('ping'); localStorage.setItem('kc_api',u); await loadCfg(); await loadAdminData(); startSettings(); rerender(); updateApiState(); toast('연결되었습니다.'); }
+    catch(e){ API_URL=old; if(st) st.textContent=''; alert('연결 실패: '+e.message); }
+  },
+  copy(d){ navigator.clipboard.writeText(d.v).then(()=>toast('복사했습니다.'),()=>prompt('복사하세요',d.v)); },
+  addSubj(){ CE.subjects.push({name:'',teachers:{1:'',2:'',3:''},areas:{1:'',2:'',3:''}}); rerender(); },
+  delSubj(d){ if(confirm(`'${CE.subjects[+d.i].name}' 교과를 목록에서 뺄까요?`)){ CE.subjects.splice(+d.i,1); rerender(); } },
+  resetReg(){ if(confirm('규정 문구를 기본값으로 되돌릴까요?')){ CE.reg=Object.assign({},REG_DEFAULT); rerender(); } },
+  async saveCfg(){
+    if(!API_URL){ alert('먼저 서버를 연결하세요.'); return; }
+    const c={year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
+      subjects:CE.subjects.filter(s=>String(s.name).trim()).map(s=>({name:s.name.trim(),teachers:s.teachers,areas:s.areas})),
+      roster:{1:parseRoster(CE.rosterText['1']),2:parseRoster(CE.rosterText['2']),3:parseRoster(CE.rosterText['3'])}, reg:CE.reg};
+    try{ await api('set',{key:'config', value:c}); CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('설정을 저장했습니다. 교사 화면에 바로 반영됩니다.'); }
+    catch(e){ alert('저장 실패: '+e.message); }
+  }
+};
+
+let RENDERING=false;
+function rerender(){ if(RENDERING){ setTimeout(rerender,0); return; } RENDERING=true; try{ const y=window.scrollY; if(VIEW==='teacher') renderTeacher(); else renderAdmin(); window.scrollTo(0,y); saveDraft(); } finally { RENDERING=false; } }
+
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-act]'); if(!b) return; e.preventDefault(); const f=ACT[b.dataset.act]; if(f) f(b.dataset,b); });
+document.addEventListener('input',e=>{
+  const el=e.target, k=el.dataset.k; if(!k) return;
+  const R=root(); if(!R) return;
+  setPath(R,k, el.type==='checkbox'?el.checked:el.value);
+  if(el.dataset.note){ const o=getPath(R,el.dataset.note); o.noteEdited=true; }
+  refresh();
+});
+document.addEventListener('change',e=>{ setTimeout(()=>onChange(e),0); });
+async function onChange(e){
+  const el=e.target; const R=root(); if(!R||!el.dataset) return;
+  if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
+  if(el.dataset.sid){ // 학번 → 이름·사유 자동
+    const o=getPath(R,el.dataset.sid); const g=VIEW==='teacher'?M.grade:AD.grade; const s=findStu(g,o.sid);
+    if(s){ o.name=s.name; const rs=REASONS.includes(s.reason)?s.reason:(s.reason?'기타':o.reason); if(rs!==o.reason||(rs==='기타'&&o.reasonText!==s.reason)){ o.reason=rs; if(rs==='기타') o.reasonText=s.reason; if(el.dataset.kind==='exam') applyExamDefaults(o); else applyPerfDefaults(o); } rerender(); }
+    return;
+  }
+  if(el.dataset.def){ const o=getPath(R,el.dataset.def); if(el.dataset.kind==='exam') applyExamDefaults(o); else applyPerfDefaults(o); }
+  if(el.dataset.exam){ const o=getPath(R,el.dataset.exam); o.otherExam=o.exam==='1차 시험'?'2차 시험':'1차 시험'; }
+  if(el.dataset.subj!==undefined && VIEW==='teacher'){ const sc=subjCfg(subjName(M)); if(sc&&sc.teachers[M.grade]) M.teachers=sc.teachers[M.grade]; }
+  if(VIEW==='admin' && (el.dataset.k==='year'||el.dataset.k==='grade'||el.dataset.k==='sem') && AD.tab!=='settings'){ AD.viewKey=''; AD.gen=''; await loadAdminData(); rerender(); return; }
+  if(el.dataset.rr!==undefined) rerender();
+  if(el.dataset.chk!==undefined && VIEW==='teacher') checkExisting();
+}
+
+function updateApiState(){
+  const s=$('#apiState'); if(!s) return;
+  s.textContent = !API_URL ? '⚠ 서버 미연결' : (API_URL==='demo'?'● 연습 모드':'● 서버 연결됨');
+}
+async function init(){
+  $('#modeLabel').textContent = VIEW==='teacher'?'교과 교사용':'평가부장용';
+  const sw=$('#modeSwitch');
+  if(VIEW==='teacher'){ sw.textContent='평가부장 화면'; sw.href='?admin'+(Q.get('api')?'&api='+encodeURIComponent(Q.get('api')):''); }
+  else { sw.textContent='교사 화면'; sw.href='?'+(Q.get('api')?'api='+encodeURIComponent(Q.get('api')):''); }
+  updateApiState();
+  let cfgErr='';
+  try{ await loadCfg(); }catch(e){ cfgErr=e.message; }
+  if(VIEW==='teacher'){
+    const d=localStorage.getItem('kc_draft');
+    M = d ? Object.assign(newMinutes(), JSON.parse(d)) : newMinutes();
+    renderTeacher();
+    checkExisting();
+  } else {
+    AD.year=String(CFG.year); AD.sem=curSem();
+    if(!API_URL) AD.tab='settings';
+    await loadAdminData();
+    renderAdmin();
+  }
+  if(cfgErr) toast('서버에서 설정을 불러오지 못했습니다: '+cfgErr, 5000);
+}
+init();
+</script>
+</body>
+</html>
