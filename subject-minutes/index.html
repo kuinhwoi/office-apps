@@ -551,7 +551,7 @@ function renderTeacher(){
   const m=M, sub=subjName(m);
   setDatalists(m.grade, sub);
   const subjOpts=[['','— 교과 선택 —'],...CFG.subjects.map(s=>s.name),['__custom','직접 입력']];
-  const ros=rosterOf(m.grade);
+  const ros=rosterOf(m.grade).filter(x=>x.exam!=='정기만');
   let banner='';
   if(!API_URL) banner=`<div class="banner warn">서버 주소가 없습니다. <b>평가부장에게 받은 링크로 접속</b>해야 ‘보내기’가 됩니다. (작성·인쇄는 지금도 됩니다)</div>`;
   else if(API_URL==='demo') banner=`<div class="banner info">연습 모드입니다. 보낸 내용은 이 컴퓨터에만 저장됩니다.</div>`;
@@ -677,12 +677,12 @@ function normExamOne(e,m){ return {sid:e.sid,name:e.name,reason:reasonLabel(e),r
 function collectExamRows(){ const out=[]; sortedMinutes().forEach(x=>{ if(!x.m.none) x.m.exam.forEach(e=>out.push(normExamOne(e,x.m))); }); return out; }
 function sortedMinutes(){ const ord=subjectOrder(); return [...AD.minutes].sort((a,b)=>ord.indexOf(subjName(a.m))-ord.indexOf(subjName(b.m))); }
 function adminExamsHTML(){
-  const m=ctxM(); const ros=rosterOf(AD.grade);
+  const m=ctxM(); const ros=rosterOf(AD.grade).filter(x=>x.exam==='정기'||x.exam==='정기만');
   const fromMin=collectExamRows();
   return `<div class="layout"><section>
    <div class="card"><h2>정기시험 결시생 인정점 <small>질병결·미인정결 등 평가부에서 직접 입력</small></h2>
     <p class="hint">교과 협의록에 들어 있는 정기시험 인정점(예: 전입생)은 자동으로 부여표에 들어가니 여기서 다시 넣지 않아도 됩니다.</p>
-    ${ros.length?`<div class="chips">${ros.map(s=>`<button class="chip" data-act="addExamStu" data-sid="${esc(s.sid)}">＋ ${esc(s.name)} (${esc(s.sid)} · ${esc(s.reason||'')})</button>`).join('')}</div>`:''}
+    ${ros.length?`<div class="hint">명단에서 ‘정기’ 표시한 학생:</div><div class="chips">${ros.map(s=>`<button class="chip" data-act="addExamStu" data-sid="${esc(s.sid)}">＋ ${esc(s.name)} (${esc(s.sid)} · ${esc(s.reason||'')})</button>`).join('')}</div>`:`<p class="hint">④ 설정의 명단에서 학생 줄 끝에 <b>정기</b>(또는 <b>정기만</b>)라고 적으면 여기에 버튼으로 나옵니다.</p>`}
     ${AD.exams.map((e,i)=>examCard(e,i,'exams',m,true)).join('')}
     <button class="btn" data-act="addExamAD">+ 학생 직접 추가</button>
    </div>
@@ -727,7 +727,7 @@ function generateTableHTML(){
 /* ----- 설정 ----- */
 function startSettings(){
   CE = clone(CFG);
-  CE.rosterText = {}; ['1','2','3'].forEach(g=>CE.rosterText[g]=(CFG.roster[g]||[]).map(s=>[s.sid,s.name,s.reason].filter(Boolean).join(' ')).join('\n'));
+  CE.rosterText = {}; ['1','2','3'].forEach(g=>CE.rosterText[g]=(CFG.roster[g]||[]).map(s=>[s.sid,s.name,s.reason,s.exam].filter(Boolean).join(' ')).join('\n'));
   CE.apiUrl = API_URL;
 }
 function adminSettingsHTML(){
@@ -758,9 +758,9 @@ function adminSettingsHTML(){
     ${F('결재란 아래 칸 글자 (쉼표로)','approvalSigns',CE.approvalSigns,'placeholder=", 전결"')}
    </div></div>
    <div class="card"><h2>학년별 명단 · 교과 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-ceg')}</h2>
-    <label class="f wall"><span><b>${CE_G}학년 인정점 대상 학생</b> — 한 줄에 “학번 이름 사유” (사유: 전입, 질병결, 미인정결, 인정결 또는 직접)</span>
-    <textarea data-k="rosterText.${CE_G}" rows="6" placeholder="3101 홍길동 전입&#10;3202 김철수 질병결">${esc(CE.rosterText[CE_G]||'')}</textarea></label>
-    <p class="hint">교사가 학번을 넣으면 이름·사유가 자동으로 채워지고, 명단에 없는 학번이면 경고합니다.</p>
+    <label class="f wall"><span><b>${CE_G}학년 인정점 대상 학생</b> — 한 줄에 “학번 이름 사유 [정기]” (사유: 전입, 질병결, 미인정결, 인정결 또는 직접)</span>
+    <textarea data-k="rosterText.${CE_G}" rows="6" placeholder="3101 홍길동 전입&#10;3202 김철수 질병결 정기&#10;3303 이영희 미인정결 정기만">${esc(CE.rosterText[CE_G]||'')}</textarea></label>
+    <p class="hint">줄 끝 표시 — <b>(표시 없음)</b> 교사 화면 수행평가 버튼에만 · <b>정기</b> 교사 화면 + ② 정기시험 결시생 버튼 모두 · <b>정기만</b> ② 정기시험 결시생 버튼에만 (교사 화면에는 안 나옴)<br>교사가 학번을 넣으면 이름·사유가 자동으로 채워지고, 명단에 없는 학번이면 경고합니다.</p>
     <table class="set-tbl" style="margin-top:10px"><tr><th style="width:16%">교과</th><th style="width:28%">${CE_G}학년 참가교사 (기본값)</th><th>${CE_G}학년 수행평가 영역 (쉼표로)</th><th style="width:44px"></th></tr>
      ${CE.subjects.map((s,i)=>`<tr><td><input data-k="subjects.${i}.name" value="${esc(s.name)}"></td><td><input data-k="subjects.${i}.teachers.${CE_G}" value="${esc(s.teachers[CE_G]||'')}"></td><td><input data-k="subjects.${i}.areas.${CE_G}" value="${esc(s.areas[CE_G]||'')}"></td><td><button class="btn sm del" data-act="delSubj" data-i="${i}">×</button></td></tr>`).join('')}
     </table>
@@ -836,7 +836,7 @@ async function importAreasFile(file){
     rerender(); toast(`가져왔습니다${added?` (새 교과 ${added}개 추가)`:''}. 확인 후 ‘설정 저장’을 눌러 주세요.`,5000);
   }catch(e){ alert(e.message); }
 }
-function parseRoster(t){ return String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ const p=l.split(/[\s,\t]+/); return {sid:p[0]||'', name:p[1]||'', reason:p.slice(2).join(' ')||''}; }).filter(s=>s.sid); }
+function parseRoster(t){ return String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ let p=l.split(/[\s,\t]+/); let exam=''; const last=p[p.length-1]; if(p.length>2&&/^(정기만|정기시험만)$/.test(last)){ exam='정기만'; p=p.slice(0,-1); } else if(p.length>2&&/^(정기|정기시험)$/.test(last)){ exam='정기'; p=p.slice(0,-1); } return {sid:p[0]||'', name:p[1]||'', reason:p.slice(2).join(' ')||'', exam}; }).filter(s=>s.sid); }
 
 /* ===================== 행동 ===================== */
 const ACT = {
