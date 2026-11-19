@@ -342,7 +342,7 @@ function applyPerfDefaults(r){
   else { r.method='other'; r.ratio= r.reason==='인정결'?'100':''; }
 }
 function newExam(m, stu, admin){
-  const e={sid:'',name:'',reason:'전입',reasonText:'',exam:'1차 시험',method:'other',otherExam:'2차 시험',ratio:'100',methodText:'',basis:'',subjects:[{subj:admin?'':'',base:'',score:''}],note:'',noteEdited:false};
+  const e={sid:'',name:'',reason:'질병결',reasonText:'',exam:'1차 시험',method:'other',otherExam:'2차 시험',ratio:'100',methodText:'',basis:'',subjects:[{subj:admin?'':'',base:'',score:''}],note:'',noteEdited:false};
   if(stu){ e.sid=stu.sid; e.name=stu.name; if(REASONS.includes(stu.reason)) e.reason=stu.reason; else if(stu.reason){e.reason='기타';e.reasonText=stu.reason;} }
   applyExamDefaults(e); return e;
 }
@@ -522,7 +522,7 @@ function examCard(e,i,P,m,admin){
 let VIEW = IS_ADMIN ? 'admin' : 'teacher';
 let M = null;            // 교사: 작성 중인 협의록
 let EXIST = null;        // 교사: 서버에 이미 제출된 협의록
-let AD = {tab:'status', year:'', grade:'3', sem:'', minutes:[], loaded:false, exams:[], examsLoaded:false, viewKey:'', gen:''};
+let AD = {sel:[], tab:'status', year:'', grade:'3', sem:'', minutes:[], loaded:false, exams:[], examsLoaded:false, viewKey:'', gen:''};
 let CE = null;           // 설정 편집본
 let CE_G = '3';
 const root = ()=> VIEW==='teacher' ? M : (AD.tab==='settings' ? CE : AD);
@@ -657,14 +657,15 @@ function adminStatusHTML(){
   const byS={}; AD.minutes.forEach(x=>byS[subjName(x.m)]=x);
   const names=subjectOrder();
   const done=names.filter(n=>byS[n]).length;
-  const rows=names.map(n=>{ const x=byS[n]; if(!x) return `<tr><td>${esc(n)}</td><td class="st-no">미제출</td><td></td><td></td><td></td><td></td></tr>`;
+  const rows=names.map(n=>{ const x=byS[n]; if(!x) return `<tr><td></td><td>${esc(n)}</td><td class="st-no">미제출</td><td></td><td></td><td></td><td></td></tr>`;
     const m=x.m; const cnt=m.none?'대상 없음':`수행 ${m.perf.length}건 · 정기 ${m.exam.length}건`;
-    return `<tr><td><b>${esc(n)}</b></td><td class="st-ok">제출</td><td>${esc(lt(m.submittedAt||x.updated))}</td><td>${esc(m.teachers)}</td><td>${cnt}</td><td><button class="btn sm" data-act="viewM" data-key="${esc(x.key)}">보기</button> <button class="btn sm" data-act="printOne" data-key="${esc(x.key)}">인쇄</button> <button class="btn sm del" data-act="delM" data-key="${esc(x.key)}">삭제</button></td></tr>`; }).join('');
+    return `<tr><td><input type="checkbox" data-selkey="${esc(x.key)}" ${AD.sel.includes(x.key)?'checked':''} style="width:18px;height:18px"></td><td><b>${esc(n)}</b></td><td class="st-ok">제출</td><td>${esc(lt(m.submittedAt||x.updated))}</td><td>${esc(m.teachers)}</td><td>${cnt}</td><td><button class="btn sm" data-act="viewM" data-key="${esc(x.key)}">보기</button> <button class="btn sm" data-act="printOne" data-key="${esc(x.key)}">인쇄</button> <button class="btn sm del" data-act="delM" data-key="${esc(x.key)}">삭제</button></td></tr>`; }).join('');
+  AD.sel=(AD.sel||[]).filter(k=>AD.minutes.some(x=>x.key===k)); const selN=AD.sel.length;
   const view = AD.viewKey ? AD.minutes.find(x=>x.key===AD.viewKey) : null;
   return `<div class="card"><h2>${esc(AD.year)}학년도 ${esc(AD.grade)}학년 ${esc(AD.sem)}학기 교과협의록 제출 현황 <small>${done} / ${names.length} 교과 제출</small></h2>
-   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 새로고침</button><button class="btn pri" data-act="printAll" ${AD.minutes.length?'':'disabled'}>🖨 제출된 협의록 모두 인쇄</button></div>
+   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 새로고침</button><button class="btn ok" data-act="printSel" ${selN?'':'disabled'}>🖨 선택한 협의록 인쇄${selN?` (${selN}건)`:''}</button><button class="btn pri" data-act="printAll" ${AD.minutes.length?'':'disabled'}>🖨 제출된 협의록 모두 인쇄</button></div>
    <p class="hint">설정에 등록된 교과 중 협의를 하지 않는 교과는 무시하셔도 됩니다. 교과 목록은 ④ 설정에서 고칠 수 있습니다.</p>
-   <table class="lst"><tr><th>교과</th><th>상태</th><th>제출 시각</th><th>참가교사</th><th>내용</th><th></th></tr>${rows}</table></div>
+   <table class="lst"><tr><th style="width:34px"><input type="checkbox" data-selall title="전체 선택" ${AD.minutes.length&&selN===AD.minutes.length?'checked':''} style="width:18px;height:18px"></th><th>교과</th><th>상태</th><th>제출 시각</th><th>참가교사</th><th>내용</th><th></th></tr>${rows}</table></div>
    ${view?`<div class="card"><h2>${esc(subjName(view.m))} 협의록 미리보기 <button class="btn sm" data-act="printOne" data-key="${esc(view.key)}">인쇄</button> <button class="btn sm" data-act="closeView">닫기</button></h2><div style="overflow:auto"><div class="page">${minutesHTML(view.m)}</div></div></div>`:''}`;
 }
 function examPreviewHTML(){
@@ -866,6 +867,7 @@ const ACT = {
   viewM(d){ AD.viewKey=d.key; rerender(); },
   closeView(){ AD.viewKey=''; rerender(); },
   printOne(d){ const x=AD.minutes.find(x=>x.key===d.key); if(x) printDocs([minutesHTML(x.m)]); },
+  printSel(){ const L=sortedMinutes().filter(x=>AD.sel.includes(x.key)); if(!L.length){ alert('인쇄할 협의록을 선택하세요.'); return; } printDocs(L.map(x=>minutesHTML(x.m))); },
   printAll(){ printDocs(sortedMinutes().map(x=>minutesHTML(x.m))); },
   async delM(d){ const x=AD.minutes.find(x=>x.key===d.key); if(!x||!confirm(`${subjName(x.m)} 협의록을 삭제할까요? (되돌릴 수 없습니다)`)) return; try{ await api('remove',{key:d.key}); await loadAdminData(); AD.viewKey=''; rerender(); toast('삭제했습니다.'); }catch(e){ alert(e.message); } },
   async saveExams(){ try{ await api('set',{key:examKey(), value:{exams:AD.exams, savedAt:new Date().toISOString()}}); toast('저장했습니다.'); }catch(e){ alert('저장 실패: '+e.message); } },
@@ -914,6 +916,8 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{ setTimeout(()=>onChange(e),0); });
 async function onChange(e){
   const el=e.target; const R=root(); if(!R||!el.dataset) return;
+  if(el.dataset.selkey){ const k=el.dataset.selkey; AD.sel=(AD.sel||[]).filter(x=>x!==k); if(el.checked) AD.sel.push(k); rerender(); return; }
+  if(el.dataset.selall!==undefined){ AD.sel=el.checked?AD.minutes.map(x=>x.key):[]; rerender(); return; }
   if(el.id==='xlsFile'){ const f=el.files&&el.files[0]; el.value=''; if(f) importAreasFile(f); return; }
   if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
   if(el.dataset.sid){ // 학번 → 이름·사유 자동
