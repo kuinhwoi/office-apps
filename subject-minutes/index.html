@@ -137,7 +137,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.1';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -1105,7 +1105,7 @@ async function init(){
   $('#modeLabel').textContent = VIEW==='teacher'?'교과 교사용':'평가부장용';
   const sw=$('#modeSwitch');
   if(VIEW==='teacher'){ sw.textContent='평가부장 화면'; sw.href='?admin'+(Q.get('api')?'&api='+encodeURIComponent(Q.get('api')):''); }
-  else { sw.textContent='교사 화면'; sw.href='?'+(Q.get('api')?'api='+encodeURIComponent(Q.get('api')):''); }
+  else { sw.textContent='교사 화면 (새 탭)'; sw.href='?'+(API_URL?'api='+encodeURIComponent(API_URL):''); sw.target='_blank'; sw.rel='noopener'; }
   updateApiState();
   let cfgErr='';
   try{ await loadCfg(); }catch(e){ cfgErr=e.message; }
