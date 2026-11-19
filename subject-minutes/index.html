@@ -166,7 +166,7 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 
 <script>
 'use strict';
-const APP_VERSION = '1.92';
+const APP_VERSION = '1.93';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -867,7 +867,7 @@ function renderAdmin(){
 }
 function subjectOrder(){ const names=CFG.subjects.map(s=>s.name); AD.minutes.forEach(x=>{ const s=subjName(x.m); if(!names.includes(s)) names.push(s); }); return names; }
 function attAdminHTML(x){ const A=x.m.attachments||[]; if(!A.length) return '<p class="hint">첨부된 증빙자료가 없습니다.</p>';
-  return `<div style="margin:0 0 10px"><b>📎 증빙자료 ${A.length}개</b> <button class="btn sm" data-act="dlAll" data-key="${esc(x.key)}">모두 내려받기</button>${A.map(a=>`<div class="att">📄<span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="sz">${fsize(a.size||0)}</span><button class="btn sm" data-act="dlFile" data-id="${esc(a.id)}" data-name="${esc(a.name)}">내려받기</button>${a.url?`<a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener">드라이브에서 열기</a>`:''}</div>`).join('')}</div>`; }
+  return `<div style="margin:0 0 10px"><b>📎 증빙자료 ${A.length}개</b> <button class="btn sm" data-act="dlAll" data-key="${esc(x.key)}">모두 내려받기</button> <button class="btn sm ok" data-act="printEv" data-key="${esc(x.key)}">🖨 증빙자료 인쇄</button>${A.map(a=>`<div class="att">📄<span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="sz">${fsize(a.size||0)}</span><button class="btn sm" data-act="dlFile" data-id="${esc(a.id)}" data-name="${esc(a.name)}">내려받기</button>${a.url?`<a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener">드라이브에서 열기</a>`:''}</div>`).join('')}</div>`; }
 function adminStatusHTML(){
   const byS={}; AD.minutes.forEach(x=>byS[subjName(x.m)]=x);
   const names=subjectOrder();
@@ -878,7 +878,7 @@ function adminStatusHTML(){
   AD.sel=(AD.sel||[]).filter(k=>AD.minutes.some(x=>x.key===k)); const selN=AD.sel.length;
   const view = AD.viewKey ? AD.minutes.find(x=>x.key===AD.viewKey) : null;
   return `<div class="card"><h2>${esc(AD.year)}학년도 ${esc(AD.grade)}학년 ${esc(AD.sem)}학기 교과협의록 제출 현황 <small>${done} / ${names.length} 교과 제출</small></h2>
-   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 새로고침</button><button class="btn ok" data-act="printSel" ${selN?'':'disabled'}>🖨 선택한 협의록 인쇄${selN?` (${selN}건)`:''}</button><button class="btn pri" data-act="printAll" ${AD.minutes.length?'':'disabled'}>🖨 제출된 협의록 모두 인쇄</button></div>
+   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 새로고침</button><button class="btn ok" data-act="printSel" ${selN?'':'disabled'}>🖨 선택한 협의록 인쇄${selN?` (${selN}건)`:''}</button><button class="btn" data-act="printEv" ${AD.minutes.some(x=>(x.m.attachments||[]).length)?'':'disabled'}>📎 ${selN?`선택한 협의록 증빙자료 인쇄`:'증빙자료 모두 인쇄'}</button><button class="btn pri" data-act="printAll" ${AD.minutes.length?'':'disabled'}>🖨 제출된 협의록 모두 인쇄</button></div>
    <p class="hint">설정에 등록된 교과 중 협의를 하지 않는 교과는 무시하셔도 됩니다. 교과 목록은 ④ 설정에서 고칠 수 있습니다.</p>
    <table class="lst"><tr><th style="width:34px"><input type="checkbox" data-selall title="전체 선택" ${AD.minutes.length&&selN===AD.minutes.length?'checked':''} style="width:18px;height:18px"></th><th>교과</th><th>상태</th><th>제출 시각</th><th>참가교사</th><th>내용</th><th></th></tr>${rows}</table></div>
    ${view?`<div class="card"><h2>${esc(subjName(view.m))} 협의록 미리보기 <button class="btn sm" data-act="printOne" data-key="${esc(view.key)}">인쇄</button> <button class="btn sm" data-act="closeView">닫기</button></h2>${attAdminHTML(view)}<div style="overflow:auto"><div class="page">${minutesHTML(view.m)}</div></div></div>`:''}`;
@@ -1067,6 +1067,10 @@ function parseCSV(t){ const rows=[]; let row=[],cell='',q=false; t=t.replace(/^\
     if(q){ if(c==='"'){ if(t[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
     else if(c==='"') q=true; else if(c===','){row.push(cell);cell='';} else if(c==='\n'){row.push(cell);rows.push(row);row=[];cell='';} else if(c!=='\r') cell+=c; }
   if(cell||row.length){row.push(cell);rows.push(row);} return rows; }
+let PDFLIB_P=null;
+function loadPdfLib(){ if(window.PDFLib) return Promise.resolve(window.PDFLib); if(PDFLIB_P) return PDFLIB_P;
+  PDFLIB_P=new Promise((ok,no)=>{ const sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'; sc.onload=()=>ok(window.PDFLib); sc.onerror=()=>{ PDFLIB_P=null; no(new Error('PDF 묶기 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); }; document.head.appendChild(sc); });
+  return PDFLIB_P; }
 async function readSheets(file){
   if(/\.csv$/i.test(file.name)){ const buf=await file.arrayBuffer(); let t=new TextDecoder('utf-8').decode(buf); if(t.includes('\uFFFD')) t=new TextDecoder('euc-kr').decode(buf); return [{name:'',rows:parseCSV(t)}]; }
   const X=await loadXLSX(); const wb=X.read(await file.arrayBuffer(),{type:'array'});
@@ -1283,6 +1287,33 @@ const ACT = {
   async dlFile(d){ try{ const j=await busy('파일 내려받는 중',api('getfile',{id:d.id})); const bin=atob(j.data); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
       const url=URL.createObjectURL(new Blob([arr],{type:j.mime||'application/octet-stream'})); const a=document.createElement('a'); a.href=url; a.download=j.name||d.name||'첨부파일'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),3000); }
     catch(e){ alert('내려받지 못했습니다: '+e.message); } },
+  async printEv(d){
+    const L=d&&d.key?AD.minutes.filter(x=>x.key===d.key):(AD.sel.length?sortedMinutes().filter(x=>AD.sel.includes(x.key)):sortedMinutes());
+    const files=[]; L.forEach(x=>(x.m.attachments||[]).forEach(a=>files.push({...a,subj:subjName(x.m)})));
+    if(!files.length){ alert('인쇄할 증빙자료가 없습니다.'); return; }
+    const isPdf=a=>/\.pdf$/i.test(a.name)||/pdf/.test(a.mime||''), isImg=a=>/\.(png|jpe?g)$/i.test(a.name)||/image\/(png|jpe?g)/.test(a.mime||'');
+    const ok=files.filter(a=>isPdf(a)||isImg(a)), skip=files.filter(a=>!(isPdf(a)||isImg(a)));
+    if(!ok.length){ alert('인쇄할 수 있는 파일(PDF·사진)이 없습니다.\n한글·엑셀 파일은 내려받아서 인쇄해 주세요.\n\n'+skip.map(a=>`[${a.subj}] ${a.name}`).join('\n')); return; }
+    if(skip.length&&!confirm(`PDF·사진 ${ok.length}개를 하나로 묶어 인쇄합니다.\n아래 ${skip.length}개는 브라우저에서 바로 인쇄할 수 없어 빠집니다 (내려받아 인쇄해 주세요).\n\n${skip.map(a=>`[${a.subj}] ${a.name}`).join('\n')}`)) return;
+    const w=window.open('','_blank'); if(w) w.document.write('<p style="font-family:sans-serif;padding:20px">증빙자료를 모으는 중입니다… 이 창을 닫지 마세요.</p>');
+    try{
+      const blob=await busy(`증빙자료 ${ok.length}개 모으는 중`,(async()=>{
+        const PL=await loadPdfLib(); const out=await PL.PDFDocument.create(); const bad=[];
+        for(const a of ok){
+          try{ const j=await api('getfile',{id:a.id}); const bytes=Uint8Array.from(atob(j.data),c=>c.charCodeAt(0));
+            if(isPdf(a)){ const src=await PL.PDFDocument.load(bytes,{ignoreEncryption:true}); (await out.copyPages(src,src.getPageIndices())).forEach(p=>out.addPage(p)); }
+            else { const img=/png/i.test(a.mime||a.name)?await out.embedPng(bytes):await out.embedJpg(bytes); const W=595.28,H=841.89,M=28; const sc=Math.min((W-2*M)/img.width,(H-2*M)/img.height,1); const pg=out.addPage([W,H]); pg.drawImage(img,{x:(W-img.width*sc)/2,y:(H-img.height*sc)/2,width:img.width*sc,height:img.height*sc}); }
+          }catch(e){ bad.push(`[${a.subj}] ${a.name}`); }
+        }
+        if(!out.getPageCount()) throw new Error('파일을 읽지 못했습니다.');
+        if(bad.length) setTimeout(()=>alert('아래 파일은 열지 못해 빠졌습니다.\n\n'+bad.join('\n')),300);
+        return new Blob([await out.save()],{type:'application/pdf'});
+      })());
+      const url=URL.createObjectURL(blob);
+      if(w&&!w.closed){ w.location.href=url; } else { const a=document.createElement('a'); a.href=url; a.target='_blank'; a.click(); }
+      toast('새 탭에 증빙자료 PDF가 열렸습니다. 그 탭에서 인쇄(Ctrl+P)하세요.',6000);
+    }catch(e){ if(w&&!w.closed) w.close(); alert('증빙자료를 모으지 못했습니다: '+e.message); }
+  },
   async dlAll(d){ const x=AD.minutes.find(x=>x.key===d.key); for(const a of ((x&&x.m.attachments)||[])) await ACT.dlFile({id:a.id,name:a.name}); },
   printM(){ printDocs([minutesHTML(M)]); },
   async submitM(){
