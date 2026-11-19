@@ -137,7 +137,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.2';
+const APP_VERSION = '1.3';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -205,12 +205,41 @@ const IS_ADMIN = Q.has('admin');
 async function api(action, data={}){
   if(!API_URL) throw new Error('서버 주소가 설정되지 않았습니다.');
   if(API_URL==='demo') return demoApi(action, data);
-  const res = await fetch(API_URL, {method:'POST', body: JSON.stringify({action, ...data})});
+  const body = Object.assign({action}, VIEW==='admin'&&ADMIN_PW?{pw:ADMIN_PW}:{}, data);
+  const res = await fetch(API_URL, {method:'POST', body: JSON.stringify(body)});
   const txt = await res.text();
   let j; try{ j=JSON.parse(txt); }catch(e){ throw new Error('서버 응답을 읽지 못했습니다. (Apps Script 배포 설정을 확인하세요)'); }
-  if(!j.ok) throw new Error(j.error||'서버 오류');
+  if(!j.ok){ const er=new Error(j.error||'서버 오류'); er.code=j.code||'';
+    if(j.code==='AUTH' && VIEW==='admin' && !LOCKED){ ADMIN_PW=''; localStorage.removeItem('kc_pw'); setTimeout(()=>renderLock('login','비밀번호가 바뀌었거나 맞지 않습니다. 다시 입력해 주세요.'),0); }
+    throw er; }
   return j;
 }
+/* ----- 평가부장 비밀번호 ----- */
+let ADMIN_PW = localStorage.getItem('kc_pw')||'';
+let LOCKED = false, SERVER_OLD = false;
+async function ensureAuth(){
+  if(API_URL==='demo'){ SERVER_OLD=false; return true; }
+  const j=await api('ping');
+  if(j.pwSet===undefined){ SERVER_OLD=true; return true; }
+  SERVER_OLD=false;
+  if(!j.pwSet){ renderLock('create'); return false; }
+  if(ADMIN_PW){ try{ const a=await api('auth',{pw:ADMIN_PW}); if(a.valid) return true; }catch(e){} ADMIN_PW=''; localStorage.removeItem('kc_pw'); renderLock('login','비밀번호가 맞지 않습니다.'); return false; }
+  renderLock('login'); return false;
+}
+function renderLock(mode,msg){
+  LOCKED=true;
+  $('#app').innerHTML=`<div class="card" style="max-width:440px;margin:40px auto">
+   <h2>🔒 평가부장 ${mode==='create'?'비밀번호 만들기':'로그인'}</h2>
+   ${mode==='create'?'<p class="hint">이 서버(구글 시트)에는 아직 평가부장 비밀번호가 없습니다. 지금 만든 비밀번호로만 제출 현황·설정·결시생 명단을 볼 수 있습니다. (4자 이상)</p>':'<p class="hint">평가부장 화면은 비밀번호가 있어야 열립니다. 이 컴퓨터에서는 한 번만 입력하면 됩니다.</p>'}
+   ${msg?`<div class="banner warn">${esc(msg)}</div>`:''}
+   <label class="f" style="margin:8px 0"><span>비밀번호</span><input type="password" id="pw1" autocomplete="${mode==='create'?'new-password':'current-password'}"></label>
+   ${mode==='create'?'<label class="f" style="margin:8px 0"><span>비밀번호 확인</span><input type="password" id="pw2" autocomplete="new-password"></label>':''}
+   <div style="display:flex;gap:8px;margin-top:10px"><button class="btn pri" data-act="${mode==='create'?'doCreatePw':'doLogin'}">${mode==='create'?'만들기':'들어가기'}</button><span style="flex:1"></span><button class="btn sm" data-act="resetServer">서버 주소 다시 넣기</button></div>
+   ${mode==='login'?'<p class="hint" style="margin-top:12px">비밀번호를 잊었으면 Apps Script 편집기에서 <b>resetPassword</b> 함수를 실행한 뒤 다시 열어 새로 만드세요.</p>':''}
+  </div>`;
+  setTimeout(()=>{ const i=$('#pw1'); if(i){ i.focus(); i.addEventListener('keydown',e=>{ if(e.key==='Enter') ACT[mode==='create'?'doCreatePw':'doLogin'](); }); } const i2=$('#pw2'); if(i2) i2.addEventListener('keydown',e=>{ if(e.key==='Enter') ACT.doCreatePw(); }); },30);
+}
+async function afterLogin(){ LOCKED=false; try{ await loadCfg(); }catch(e){} await loadAdminData(); renderAdmin(); updateApiState(); }
 function demoApi(action,d){ // 연습 모드: 이 브라우저에만 저장
   const st = JSON.parse(localStorage.getItem('kc_demo')||'{}');
   const save=()=>localStorage.setItem('kc_demo',JSON.stringify(st));
@@ -660,7 +689,8 @@ async function loadAdminData(force){
   }catch(e){ toast('불러오기 실패: '+e.message,4000); }
 }
 function renderAdmin(){
-  const noApi = !API_URL ? `<div class="banner warn">아직 서버(구글 시트)가 연결되지 않았습니다. <b>④ 설정</b>에서 Apps Script 주소를 넣어 주세요. 먼저 둘러보려면 주소 칸에 <code>demo</code>를 넣으면 연습 모드로 동작합니다.</div>`:'';
+  if(LOCKED) return;
+  const noApi = (SERVER_OLD&&AD.tab!=='settings'?`<div class="banner warn">Code.gs가 예전 버전이라 평가부장 비밀번호가 적용되지 않았습니다. ④ 설정의 안내를 따라 새로 배포해 주세요.</div>`:'') + (!API_URL ? `<div class="banner warn">아직 서버(구글 시트)가 연결되지 않았습니다. <b>④ 설정</b>에서 Apps Script 주소를 넣어 주세요. 먼저 둘러보려면 주소 칸에 <code>demo</code>를 넣으면 연습 모드로 동작합니다.</div>`:'');
   let body='';
   if(AD.tab==='status') body=adminStatusHTML();
   if(AD.tab==='exams') body=adminExamsHTML();
@@ -791,6 +821,10 @@ function adminSettingsHTML(){
      <p class="hint">Code.gs를 고친 뒤에는 배포 → <b>배포 관리</b> → 수정(연필) → 버전: 새 버전 → 배포 해야 반영됩니다. (주소는 그대로)</p>
     </details>
    </div>
+   ${API_URL&&API_URL!=='demo'?(SERVER_OLD?`<div class="banner warn"><b>Code.gs가 예전 버전</b>이라 평가부장 비밀번호가 적용되지 않았습니다. 새 Code.gs를 Apps Script에 붙여 넣고 <b>배포 → 배포 관리 → 연필 → 새 버전 → 배포</b> 한 뒤 이 화면을 새로고침하세요.</div>`:`<div class="card"><h2>🔒 평가부장 비밀번호</h2><div class="grid">
+    <label class="f"><span>새 비밀번호</span><input type="password" data-k="newpw" value="${esc(CE.newpw||'')}" autocomplete="new-password"></label>
+    <label class="f"><span>새 비밀번호 확인</span><input type="password" data-k="newpw2" value="${esc(CE.newpw2||'')}" autocomplete="new-password"></label></div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-act="changePw">비밀번호 바꾸기</button><button class="btn del" data-act="logout">이 컴퓨터에서 로그아웃</button></div></div>`):''}
    <div class="card"><h2>기본 정보</h2><div class="grid">
     ${F('학년도(기본값)','year',CE.year,'inputmode="numeric"')}
     ${F('결재란 칸 (쉼표로)','approvalLabels',CE.approvalLabels,'placeholder="부장, 교감"')}
@@ -1040,9 +1074,17 @@ const ACT = {
     if(!u){ alert('주소를 넣어 주세요.'); return; }
     if(u!=='demo' && !/^https:\/\/script\.google(usercontent)?\.com\//.test(u)){ alert('Apps Script 웹 앱 주소(https://script.google.com/macros/s/…/exec)를 넣어 주세요.'); return; }
     const old=API_URL; API_URL=u; if(st) st.textContent='연결 확인 중…';
-    try{ await api('ping'); localStorage.setItem('kc_api',u); await loadCfg(); await loadAdminData(); startSettings(); rerender(); updateApiState(); toast('연결되었습니다.'); }
+    try{ await api('ping'); localStorage.setItem('kc_api',u); updateApiState(); const ok=await ensureAuth(); if(!ok) return; await loadCfg(); await loadAdminData(); startSettings(); rerender(); toast('연결되었습니다.'); }
     catch(e){ API_URL=old; if(st) st.textContent=''; alert('연결 실패: '+e.message); }
   },
+  async doLogin(){ const pw=($('#pw1')||{}).value||''; if(!pw){ alert('비밀번호를 입력하세요.'); return; }
+    try{ const a=await api('auth',{pw}); if(!a.valid){ renderLock('login','비밀번호가 맞지 않습니다.'); return; } ADMIN_PW=pw; localStorage.setItem('kc_pw',pw); await afterLogin(); toast('로그인했습니다.'); }catch(e){ alert(e.message); } },
+  async doCreatePw(){ const a=($('#pw1')||{}).value||'', b=($('#pw2')||{}).value||''; if(a.length<4){ alert('비밀번호는 4자 이상으로 해 주세요.'); return; } if(a!==b){ alert('두 비밀번호가 다릅니다.'); return; }
+    try{ await api('initpw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); await afterLogin(); toast('비밀번호를 만들었습니다. 잊지 않게 따로 적어 두세요.',5000); }catch(e){ alert(e.message); } },
+  resetServer(){ if(confirm('이 컴퓨터에 저장된 서버 주소를 지우고 설정 화면으로 갈까요?')){ localStorage.removeItem('kc_api'); localStorage.removeItem('kc_pw'); location.href=location.pathname+'?admin'; } },
+  async changePw(){ const a=String(CE.newpw||''), b=String(CE.newpw2||''); if(a.length<4){ alert('새 비밀번호는 4자 이상으로 해 주세요.'); return; } if(a!==b){ alert('두 비밀번호가 다릅니다.'); return; }
+    try{ await api('changepw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); CE.newpw=''; CE.newpw2=''; rerender(); toast('비밀번호를 바꿨습니다.'); }catch(e){ alert(e.message); } },
+  logout(){ if(confirm('이 컴퓨터에서 평가부장 로그아웃할까요? 다음에 들어올 때 비밀번호를 다시 넣어야 합니다.')){ ADMIN_PW=''; localStorage.removeItem('kc_pw'); renderLock('login'); } },
   copy(d){ navigator.clipboard.writeText(d.v).then(()=>toast('복사했습니다.'),()=>prompt('복사하세요',d.v)); },
   copyTeachers(d){ const f=d.from, t=CE_G; const n=CE.subjects.filter(s=>String(s.teachers[f]||'').trim()).length; if(!n){ alert(`${f}학년에 입력된 참가교사가 없습니다.`); return; }
     const over=CE.subjects.some(s=>String(s.teachers[t]||'').trim()&&String(s.teachers[f]||'').trim());
@@ -1116,9 +1158,8 @@ async function init(){
     checkExisting();
   } else {
     AD.year=String(CFG.year); AD.sem=curSem();
-    if(!API_URL) AD.tab='settings';
-    await loadAdminData();
-    renderAdmin();
+    if(!API_URL){ AD.tab='settings'; renderAdmin(); }
+    else { let ok=false; try{ ok=await ensureAuth(); }catch(e){ AD.tab='settings'; renderAdmin(); toast('서버 연결 실패: '+e.message,5000); return; } if(ok){ await loadAdminData(); renderAdmin(); } }
   }
   if(cfgErr) toast('서버에서 설정을 불러오지 못했습니다: '+cfgErr, 5000);
 }
