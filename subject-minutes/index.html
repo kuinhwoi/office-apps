@@ -152,7 +152,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.65';
+const APP_VERSION = '1.7';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -534,6 +534,15 @@ function printDocs(htmls){
 const F=(label,k,val,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><input data-k="${k}" value="${esc(val??'')}" ${attrs}></label>`;
 const SEL=(label,k,val,opts,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><select data-k="${k}" ${attrs}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(val??'')?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
 
+function areasOf(subj,grade){ const sc=subjCfg(subj); return sc?split(sc.areas[grade]):[]; }
+function areaField(r,k,m){
+  const A=areasOf(r.subj||subjName(m), m.grade);
+  if(!A.length) return F('평가명(본교)',k+'.area',r.area,'placeholder="예: 국어 탐구 포트폴리오"','w2');
+  const custom = r._areaCustom || (r.area && !A.includes(r.area));
+  const opts=[['','— 평가 선택 —'],...A,['__custom','직접 입력']];
+  return `<label class="f w2"><span>평가명(본교) <small style="color:#1d8a4e">평가부 지정 영역</small></span><select data-areasel="${k}">${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o]; const sel=custom?v==='__custom':String(v)===String(r.area||''); return `<option value="${esc(v)}"${sel?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`
+    + (custom?F('평가명 직접 입력',k+'.area',r.area,'placeholder="평가명을 입력하세요"','w2'):'');
+}
 function perfCard(r,i,P,m){
   const k=`${P}.${i}`;
   let mf='';
@@ -549,8 +558,8 @@ function perfCard(r,i,P,m){
     ${F('이름',k+'.name',r.name)}
     ${SEL('인정 사유',k+'.reason',r.reason,REASONS,`data-rr data-def="${k}"`)}
     ${r.reason==='기타'?F('사유 직접 입력',k+'.reasonText',r.reasonText):''}
-    ${F('교과',k+'.subj',r.subj,`list="dlSubjects" placeholder="${esc(subjName(m)||'교과')}"`)}
-    ${F('평가명(본교)',k+'.area',r.area,'list="dlAreas" placeholder="예: 국어 탐구 포트폴리오"','w2')}
+    ${F('교과',k+'.subj',r.subj,`list="dlSubjects" data-rr placeholder="${esc(subjName(m)||'교과')}"`)}
+    ${areaField(r,k,m)}
     ${SEL('인정점 부과 방법',k+'.method',r.method,PERF_METHODS.filter(o=>o[0]!=='origin'||r.reason==='전입'||r.method==='origin'),'data-rr','w2')}
     <label class="f wall"><span>수행평가의 성격 (선택 · 부여 사유 글 앞부분에 들어갑니다)</span><textarea data-k="${k}.nature" rows="2" placeholder="예: 교과 진도에 따라 학습활동 결과물을 누적해서 평가하는 것임">${esc(r.nature||'')}</textarea></label>
     ${mf}
@@ -763,11 +772,28 @@ function examPreviewHTML(){
 function normExamOne(e,m){ return {sid:e.sid,name:e.name,reason:reasonLabel(e),rk:e.reason,exam:e.exam,methodText:examText(e),basis:basisOf('exam',e),note:noteOf(e,m,'exam'),subjects:(e.subjects||[]).map(s=>({subj:s.subj||subjName(m),base:num(s.base),score:examCalc(e,s)}))}; }
 function collectExamRows(){ const out=[]; sortedMinutes().forEach(x=>{ if(!x.m.none) x.m.exam.forEach(e=>out.push(normExamOne(e,x.m))); }); return out; }
 function sortedMinutes(){ const ord=subjectOrder(); return [...AD.minutes].sort((a,b)=>ord.indexOf(subjName(a.m))-ord.indexOf(subjName(b.m))); }
+function absAddHTML(){
+  const n=AD.absNew||(AD.absNew={subj:'',sid:'',name:'',reason:'질병결',reasonText:'',area:''});
+  const A=areasOf(n.subj,AD.grade);
+  const subjOpts=[['','— 교과 —'],...CFG.subjects.map(x=>x.name)];
+  return `<div class="row-card" style="border-left-color:#1d8a4e;background:#f5fbf7"><div class="rc-head">+ 수행평가 결시생 직접 추가</div><div class="grid">
+    ${SEL('교과','absNew.subj',n.subj,subjOpts,'data-rr')}
+    ${F('학번','absNew.sid',n.sid,'placeholder="예: 3305" inputmode="numeric"')}
+    ${F('이름','absNew.name',n.name)}
+    ${SEL('인정 사유','absNew.reason',n.reason,REASONS,'data-rr')}
+    ${n.reason==='기타'?F('사유 직접 입력','absNew.reasonText',n.reasonText):''}
+    ${A.length?SEL('평가명(영역)','absNew.area',A.includes(n.area)?n.area:'',[['','— 영역 선택 —'],...A],'','w2'):F('평가명(영역)','absNew.area',n.area,'placeholder="④ 설정에 영역을 넣으면 고를 수 있습니다"','w2')}
+   </div><button class="btn ok" data-act="addAbsRow" style="margin-top:8px">+ 명단에 추가</button></div>
+   <details id="absPasteBox" class="row-card" style="border-left-color:#1d8a4e;background:#f5fbf7" ${AD.absPasteOpen?'open':''}><summary class="rc-head" style="cursor:pointer;margin:0">📋 붙여넣기로 한꺼번에 추가 <span style="font-weight:normal;font-size:13px;color:var(--sub)">(눌러서 펼치기)</span></summary>
+    <label class="f wall" style="margin-top:8px"><span>한 줄에 <b>교과 학번 이름 사유 평가명</b> (엑셀에서 복사하면 칸 순서는 달라도 됩니다)</span>
+    <textarea data-k="absPaste" rows="4" placeholder="체육	3305	유인선	질병결	영역형 경쟁활동(농구)&#10;사회 3305 유인선 질병결 경제 기사 분석">${esc(AD.absPaste||'')}</textarea></label>
+    <button class="btn ok" data-act="pasteAbs">↓ 명단에 추가</button></details>`;
+}
 function absAdminListHTML(){
-  const L=(AD.absent&&AD.absent.perf)||[]; if(!L.length) return '<p class="hint">아직 올린 수행평가 결시생 명단이 없습니다.</p>';
+  const L=(AD.absent&&AD.absent.perf)||[]; if(!L.length) return absAddHTML()+'<p class="hint">아직 수행평가 결시생 명단이 없습니다. 나이스 파일을 올리거나 위에서 직접 추가하세요.</p>';
   const by={}; L.forEach(r=>(by[r.subj]=by[r.subj]||[]).push(r));
   const ord=subjectOrder(); const names=Object.keys(by).sort((a,b)=>{const x=ord.indexOf(a),y=ord.indexOf(b);return (x<0?99:x)-(y<0?99:y);});
-  return `<table class="lst"><tr><th>교과</th><th>학생 (학번 · 사유 · 영역)</th><th style="width:90px"></th></tr>${names.map(n=>`<tr><td><b>${esc(n)}</b></td><td>${by[n].map(r=>`${esc(r.name)} (${esc(r.sid)} · ${esc(reasonLabel(r))} · ${esc(r.area)})`).join('<br>')}</td><td><button class="btn sm del" style="white-space:nowrap" data-act="delAbsSubj" data-s="${esc(n)}">지우기</button></td></tr>`).join('')}</table>`;
+  return absAddHTML()+`<table class="lst"><tr><th>교과</th><th>학생 (학번 · 사유 · 영역)</th><th style="width:130px"></th></tr>${names.map(n=>`<tr><td><b>${esc(n)}</b></td><td>${by[n].map(r=>`${esc(r.name)} (${esc(r.sid)} · ${esc(reasonLabel(r))} · ${esc(r.area)}) <button class="btn sm del" style="padding:1px 7px" data-act="delAbsRow" data-i="${L.indexOf(r)}" title="이 학생만 빼기">×</button>`).join('<br>')}</td><td><button class="btn sm del" style="white-space:nowrap" data-act="delAbsSubj" data-s="${esc(n)}">교과 전체 지우기</button></td></tr>`).join('')}</table>`;
 }
 function adminExamsHTML(){
   const m=ctxM(); const ros=rosterOf(AD.grade).filter(x=>x.exam==='정기'||x.exam==='정기만');
@@ -1080,6 +1106,30 @@ const ACT = {
     AD.pasteText=''; AD.pasteOpen=false; rerender();
     toast(`학생 ${nAdd}명 추가${nMerge?`, ${nMerge}줄은 기존 칸에 합침`:''}. 확인 후 ‘저장’을 눌러 주세요.`+(bad.length?` (읽지 못한 줄 ${bad.length}개)`:''),5000);
   },
+  async saveAbsent(msg){ AD.absent.updated=new Date().toISOString(); await busy(msg||'저장하는 중',api('set',{key:absKey(),value:AD.absent})); },
+  async addAbsRow(){ const n=AD.absNew||{}; if(!n.subj){ alert('교과를 고르세요.'); return; } if(!/^\d{3,6}$/.test(String(n.sid||'').trim())||!String(n.name||'').trim()){ alert('학번과 이름을 입력하세요.'); return; }
+    AD.absent=AD.absent||{perf:[]}; AD.absent.perf=AD.absent.perf||[];
+    AD.absent.perf.push({subj:n.subj,sid:String(n.sid).trim(),name:String(n.name).trim(),reason:n.reason,reasonText:n.reason==='기타'?n.reasonText:'',area:n.area||''});
+    try{ await ACT.saveAbsent(); AD.absNew={subj:n.subj,sid:'',name:'',reason:n.reason,reasonText:'',area:''}; rerender(); toast(`${n.subj} 결시생에 ${n.name}을(를) 추가했습니다. 교사 화면에 바로 나옵니다.`,4000); }catch(e){ AD.absent.perf.pop(); alert('저장 실패: '+e.message); } },
+  async pasteAbs(){
+    const names=CFG.subjects.map(x=>x.name); const add=[];
+    String(AD.absPaste||'').split(/\r?\n/).forEach(line=>{ if(!line.trim()) return;
+      let t=line.includes('\t')?line.split('\t').map(x=>x.trim()).filter(Boolean):line.trim().split(/\s+/);
+      const iS=t.findIndex(x=>/^\d{3,6}$/.test(x)); if(iS<0) return;
+      const sid=t[iS]; let subj='', reason='', reasonText='', name=''; const rest=[];
+      t.forEach((x,i)=>{ if(i===iS) return;
+        if(!subj&&names.includes(x)){ subj=x; return; }
+        if(!reason){ const mr=REASONS.includes(x)?{reason:x}:(/질병/.test(x)?{reason:'질병결'}:(/미인정|무단/.test(x)?{reason:'미인정결'}:(/^(출석)?인정(결|결석)?$/.test(x)?{reason:'인정결'}:(/전입|편입/.test(x)?{reason:'전입'}:null)))); if(mr){ reason=mr.reason; return; } }
+        if(!name&&i>iS&&/^[가-힣]{2,5}$/.test(x)){ name=x; return; }
+        rest.push(x); });
+      if(!name){ const k=rest.findIndex(x=>/^[가-힣]{2,5}$/.test(x)&&!names.includes(x)); if(k>=0) name=rest.splice(k,1)[0]; }
+      if(!subj) return;
+      let area=rest.join(' ').trim(); const A=areasOf(subj,AD.grade); if(!area&&A.length===1) area=A[0];
+      add.push({subj,sid,name,reason:reason||'질병결',reasonText,area}); });
+    if(!add.length){ alert('추가할 줄을 찾지 못했습니다.\n한 줄에 “교과 학번 이름 사유 평가명”을 적어 주세요. 교과명은 ④ 설정의 교과 이름과 같아야 합니다.'); return; }
+    AD.absent=AD.absent||{perf:[]}; AD.absent.perf=(AD.absent.perf||[]).concat(add);
+    try{ await ACT.saveAbsent('결시생 명단 저장하는 중'); AD.absPaste=''; AD.absPasteOpen=false; rerender(); toast(`${add.length}명을 추가했습니다.`); }catch(e){ alert('저장 실패: '+e.message); } },
+  async delAbsRow(d){ const r=AD.absent.perf[+d.i]; if(!r||!confirm(`${r.subj} 결시생 ${r.name}(${r.sid})을(를) 명단에서 뺄까요?`)) return; AD.absent.perf.splice(+d.i,1); try{ await ACT.saveAbsent('지우는 중'); rerender(); }catch(e){ alert(e.message); } },
   pickAbs(){ if(!API_URL){ alert('먼저 ④ 설정에서 서버를 연결하세요.'); return; } $('#absFile').click(); },
   async delAbsSubj(d){ if(!confirm(`${d.s} 수행평가 결시생 명단을 지울까요?`)) return; AD.absent.perf=(AD.absent.perf||[]).filter(r=>r.subj!==d.s); try{ await busy('지우는 중',api('set',{key:absKey(),value:AD.absent})); rerender(); toast('지웠습니다.'); }catch(e){ alert(e.message); } },
   addExamAD(){ AD.exams.push(newExam(ctxM(),null,true)); rerender(); },
@@ -1153,7 +1203,7 @@ const ACT = {
 let RENDERING=false;
 function rerender(){ if(RENDERING){ setTimeout(rerender,0); return; } RENDERING=true; try{ const y=window.scrollY; if(VIEW==='teacher') renderTeacher(); else renderAdmin(); window.scrollTo(0,y); saveDraft(); } finally { RENDERING=false; } }
 
-document.addEventListener('toggle',e=>{ if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; },true);
+document.addEventListener('toggle',e=>{ if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-act]'); if(!b) return; e.preventDefault(); const f=ACT[b.dataset.act]; if(f) f(b.dataset,b); });
 document.addEventListener('input',e=>{
   const el=e.target, k=el.dataset.k; if(!k) return;
@@ -1165,6 +1215,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{ setTimeout(()=>onChange(e),0); });
 async function onChange(e){
   const el=e.target; const R=root(); if(!R||!el.dataset) return;
+  if(el.dataset.areasel){ const o=getPath(R,el.dataset.areasel); if(el.value==='__custom'){ o._areaCustom=true; o.area=''; } else { o._areaCustom=false; o.area=el.value; } rerender(); return; }
   if(el.dataset.selkey){ const k=el.dataset.selkey; AD.sel=(AD.sel||[]).filter(x=>x!==k); if(el.checked) AD.sel.push(k); rerender(); return; }
   if(el.dataset.selall!==undefined){ AD.sel=el.checked?AD.minutes.map(x=>x.key):[]; rerender(); return; }
   if(el.id==='xlsFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAreasFile(fs); return; }
