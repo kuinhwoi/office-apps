@@ -166,7 +166,7 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 
 <script>
 'use strict';
-const APP_VERSION = '1.9';
+const APP_VERSION = '1.91';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -237,7 +237,7 @@ async function api(action, data={}){
   const body = Object.assign({action}, VIEW==='admin'&&ADMIN_PW?{pw:ADMIN_PW}:{}, data);
   let txt;
   try{
-    const ac=new AbortController(); const to=setTimeout(()=>ac.abort(),25000);
+    const ac=new AbortController(); const to=setTimeout(()=>ac.abort(),(action==='upload'||action==='getfile')?180000:25000);
     const res = await fetch(API_URL, {method:'POST', body: JSON.stringify(body), signal:ac.signal}); clearTimeout(to);
     txt = await res.text();
   }catch(e){ setSrv('fail', e.name==='AbortError'?'timeout':'network'); throw new Error(e.name==='AbortError'?'서버 응답이 너무 늦습니다. 잠시 후 다시 해 주세요.':'서버에 연결하지 못했습니다. 인터넷 연결이나 서버 주소를 확인해 주세요.'); }
@@ -748,9 +748,13 @@ function attListHTML(){
 }
 function refreshAtt(){ const el=$('#attList'); if(el) el.innerHTML=attListHTML(); }
 function readB64(file){ return new Promise((ok,no)=>{ const fr=new FileReader(); fr.onload=()=>ok(String(fr.result).split(',')[1]||''); fr.onerror=()=>no(new Error('파일을 읽지 못했습니다.')); fr.readAsDataURL(file); }); }
-function xhrUpload(body,onp){ return new Promise((ok,no)=>{ const x=new XMLHttpRequest(); x.open('POST',API_URL); x.upload.onprogress=e=>{ if(e.lengthComputable) onp(Math.min(95,Math.round(e.loaded/e.total*95))); };
-  x.onload=()=>{ let j; try{ j=JSON.parse(x.responseText); }catch(e){ setSrv('fail','badjson'); return no(new Error('서버 응답을 읽지 못했습니다')); } setSrv('ok'); j.ok?ok(j):no(new Error(j.error||'서버 오류')); };
-  x.onerror=()=>{ setSrv('fail','network'); no(new Error('서버에 연결하지 못했습니다')); }; x.send(JSON.stringify(body)); }); }
+// 주의: XMLHttpRequest에 upload 진행 이벤트를 걸면 브라우저가 사전 확인(preflight) 요청을 보내는데,
+// Apps Script는 이를 받지 못해 '서버에 연결하지 못했습니다'가 납니다. 그래서 fetch로 보내고 진행률은 예상치로 채웁니다.
+async function postUpload(body,size,onp){
+  let v=3; const step=Math.max(0.4, 60/Math.max(1,size/200000)); // 큰 파일일수록 천천히
+  const h=setInterval(()=>{ if(v<92){ v=Math.min(92,v+step*(v<60?1:0.4)); onp(Math.round(v)); } },150);
+  try{ return await api('upload',body); } finally{ clearInterval(h); }
+}
 async function addEvFiles(files){
   if(!API_URL){ alert('서버 주소가 없어 증빙자료를 올릴 수 없습니다. 평가부장에게 받은 링크로 접속해 주세요.'); return; }
   if(!subjName(M)){ alert('먼저 ① 기본 정보에서 교과를 선택해 주세요.'); return; }
@@ -761,8 +765,8 @@ async function addEvFiles(files){
     if(!f.size){ u.err='빈 파일입니다'; refreshAtt(); continue; }
     try{
       const data=await readB64(f); u.pct=3; refreshAtt();
-      const body={action:'upload',key,name:f.name,mime:f.type||'application/octet-stream',data};
-      const j = API_URL==='demo' ? demoApi('upload',body) : await xhrUpload(body,p=>{ u.pct=p; refreshAtt(); });
+      const body={key,name:f.name,mime:f.type||'application/octet-stream',data};
+      const j = await postUpload(body,f.size,p=>{ u.pct=p; refreshAtt(); });
       M.attachments=M.attachments||[]; M.attachments.push(j.file); u.done=true; u.pct=100; saveDraft(); refreshAtt();
     }catch(e){ u.err=e.message; refreshAtt(); }
   }
