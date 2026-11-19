@@ -110,6 +110,7 @@ table.it td.l{width:30%}
 .gdoc .exbox{border:1px solid #000;padding:6px 8px;margin:4px 0 10px}
 .gdoc .exbox .exname{font-weight:bold}
 
+.prog{margin-top:14px}.prog .bar{height:10px;background:#e3e8f0;border-radius:6px;overflow:hidden}.prog .bar i{display:block;height:100%;width:0;background:var(--pri);border-radius:6px;transition:width .25s}.prog .pt{font-size:14px;color:var(--sub);margin-top:6px;display:flex;justify-content:space-between}
 #printRoot{display:none}
 @page{size:A4;margin:12mm}
 @media print{
@@ -137,7 +138,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.4';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -239,7 +240,17 @@ function renderLock(mode,msg){
   </div>`;
   setTimeout(()=>{ const i=$('#pw1'); if(i){ i.focus(); i.addEventListener('keydown',e=>{ if(e.key==='Enter') ACT[mode==='create'?'doCreatePw':'doLogin'](); }); } const i2=$('#pw2'); if(i2) i2.addEventListener('keydown',e=>{ if(e.key==='Enter') ACT.doCreatePw(); }); },30);
 }
-async function afterLogin(){ LOCKED=false; try{ await loadCfg(); }catch(e){} await loadAdminData(); renderAdmin(); updateApiState(); }
+let PROG={v:0,cap:0,h:null};
+function progStart(host){ // host: 요소 안에 진행 막대를 붙임
+  host.insertAdjacentHTML('beforeend','<div class="prog" id="prog"><div class="bar"><i id="progBar"></i></div><div class="pt"><span>들어가는 중…</span><b id="progPct">0%</b></div></div>');
+  PROG.v=0; PROG.cap=0; clearInterval(PROG.h);
+  PROG.h=setInterval(()=>{ if(PROG.v<PROG.cap){ PROG.v=Math.min(PROG.cap,PROG.v+1); progDraw(); } },60);
+}
+function progDraw(){ const b=$('#progBar'), t=$('#progPct'); if(b) b.style.width=PROG.v+'%'; if(t) t.textContent=PROG.v+'%'; }
+function progTo(p,cap){ PROG.v=Math.max(PROG.v,p); PROG.cap=Math.max(PROG.v,cap??p); progDraw(); }
+function progEnd(){ clearInterval(PROG.h); PROG.v=100; progDraw(); }
+function progFail(){ clearInterval(PROG.h); const g=$('#prog'); if(g) g.remove(); $$('[data-act="doLogin"],[data-act="doCreatePw"]').forEach(b=>b.disabled=false); }
+async function afterLogin(){ progTo(40,65); try{ await loadCfg(); }catch(e){} progTo(65,95); await loadAdminData(); progEnd(); await new Promise(r=>setTimeout(r,250)); LOCKED=false; renderAdmin(); updateApiState(); }
 function demoApi(action,d){ // 연습 모드: 이 브라우저에만 저장
   const st = JSON.parse(localStorage.getItem('kc_demo')||'{}');
   const save=()=>localStorage.setItem('kc_demo',JSON.stringify(st));
@@ -1078,9 +1089,11 @@ const ACT = {
     catch(e){ API_URL=old; if(st) st.textContent=''; alert('연결 실패: '+e.message); }
   },
   async doLogin(){ const pw=($('#pw1')||{}).value||''; if(!pw){ alert('비밀번호를 입력하세요.'); return; }
-    try{ const a=await api('auth',{pw}); if(!a.valid){ renderLock('login','비밀번호가 맞지 않습니다.'); return; } ADMIN_PW=pw; localStorage.setItem('kc_pw',pw); await afterLogin(); toast('로그인했습니다.'); }catch(e){ alert(e.message); } },
+    const card=$('#pw1').closest('.card'); $$('[data-act="doLogin"]').forEach(b=>b.disabled=true); progStart(card); progTo(5,35);
+    try{ const a=await api('auth',{pw}); if(!a.valid){ progFail(); renderLock('login','비밀번호가 맞지 않습니다.'); return; } ADMIN_PW=pw; localStorage.setItem('kc_pw',pw); await afterLogin(); toast('로그인했습니다.'); }catch(e){ progFail(); alert(e.message); } },
   async doCreatePw(){ const a=($('#pw1')||{}).value||'', b=($('#pw2')||{}).value||''; if(a.length<4){ alert('비밀번호는 4자 이상으로 해 주세요.'); return; } if(a!==b){ alert('두 비밀번호가 다릅니다.'); return; }
-    try{ await api('initpw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); await afterLogin(); toast('비밀번호를 만들었습니다. 잊지 않게 따로 적어 두세요.',5000); }catch(e){ alert(e.message); } },
+    const card=$('#pw1').closest('.card'); $$('[data-act="doCreatePw"]').forEach(x=>x.disabled=true); progStart(card); progTo(5,35);
+    try{ await api('initpw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); await afterLogin(); toast('비밀번호를 만들었습니다. 잊지 않게 따로 적어 두세요.',5000); }catch(e){ progFail(); alert(e.message); } },
   resetServer(){ if(confirm('이 컴퓨터에 저장된 서버 주소를 지우고 설정 화면으로 갈까요?')){ localStorage.removeItem('kc_api'); localStorage.removeItem('kc_pw'); location.href=location.pathname+'?admin'; } },
   async changePw(){ const a=String(CE.newpw||''), b=String(CE.newpw2||''); if(a.length<4){ alert('새 비밀번호는 4자 이상으로 해 주세요.'); return; } if(a!==b){ alert('두 비밀번호가 다릅니다.'); return; }
     try{ await api('changepw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); CE.newpw=''; CE.newpw2=''; rerender(); toast('비밀번호를 바꿨습니다.'); }catch(e){ alert(e.message); } },
@@ -1159,7 +1172,11 @@ async function init(){
   } else {
     AD.year=String(CFG.year); AD.sem=curSem();
     if(!API_URL){ AD.tab='settings'; renderAdmin(); }
-    else { let ok=false; try{ ok=await ensureAuth(); }catch(e){ AD.tab='settings'; renderAdmin(); toast('서버 연결 실패: '+e.message,5000); return; } if(ok){ await loadAdminData(); renderAdmin(); } }
+    else {
+      $('#app').innerHTML='<div class="card" style="max-width:440px;margin:40px auto" id="bootCard"><h2>평가부장 화면</h2></div>'; progStart($('#bootCard')); progTo(10,45);
+      let ok=false; try{ ok=await ensureAuth(); }catch(e){ clearInterval(PROG.h); AD.tab='settings'; renderAdmin(); toast('서버 연결 실패: '+e.message,5000); return; }
+      if(ok){ progTo(50,95); await loadAdminData(); progEnd(); await new Promise(r=>setTimeout(r,200)); renderAdmin(); } else clearInterval(PROG.h);
+    }
   }
   if(cfgErr) toast('서버에서 설정을 불러오지 못했습니다: '+cfgErr, 5000);
 }
