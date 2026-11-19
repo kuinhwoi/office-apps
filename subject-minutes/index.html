@@ -234,7 +234,7 @@ async function loadCfg(){
   try{ const j=await api('get',{key:'config'}); CFG=normalizeCfg(j.value); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); return true; }
   catch(e){ const c=localStorage.getItem('kc_cfg_cache'); CFG=normalizeCfg(c?JSON.parse(c):null); throw e; }
 }
-const rosterOf = g=>CFG.roster[g]||[];
+const rosterOf = g=>[]; // 학생 명단은 사용하지 않음 (교사가 직접 입력)
 const findStu = (g,sid)=>rosterOf(g).find(s=>String(s.sid)===String(sid).trim());
 const subjCfg = name=>CFG.subjects.find(s=>s.name===name);
 function setDatalists(grade, subject){
@@ -682,7 +682,14 @@ function adminExamsHTML(){
   return `<div class="layout"><section>
    <div class="card"><h2>정기시험 결시생 인정점 <small>질병결·미인정결 등 평가부에서 직접 입력</small></h2>
     <p class="hint">교과 협의록에 들어 있는 정기시험 인정점(예: 전입생)은 자동으로 부여표에 들어가니 여기서 다시 넣지 않아도 됩니다.</p>
-    ${ros.length?`<div class="hint">명단에서 ‘정기’ 표시한 학생:</div><div class="chips">${ros.map(s=>`<button class="chip" data-act="addExamStu" data-sid="${esc(s.sid)}">＋ ${esc(s.name)} (${esc(s.sid)} · ${esc(s.reason||'')})</button>`).join('')}</div>`:`<p class="hint">④ 설정의 명단에서 학생 줄 끝에 <b>정기</b>(또는 <b>정기만</b>)라고 적으면 여기에 버튼으로 나옵니다.</p>`}
+    <div class="row-card" style="border-left-color:#1d8a4e;background:#f5fbf7">
+     <div class="rc-head">📋 붙여넣기로 한꺼번에 추가</div>
+     <div class="grid">${SEL('결시한 시험','pasteExam',AD.pasteExam||'1차 시험',EXAMS)}</div>
+     <label class="f wall" style="margin-top:6px"><span>엑셀·나이스 표에서 복사해 붙여 넣거나 직접 입력 — 한 줄에 <b>학번 이름 사유 교과 기준점수</b> (교과·점수는 여러 개 이어 써도 되고, 생략해도 됩니다)</span>
+     <textarea data-k="pasteText" rows="5" placeholder="3305	유인선	질병결	영어	19&#10;3305	유인선	질병결	수학	40&#10;3314 하은서 미인정결 영어 0 수학 0&#10;3215 홍길동 질병결">${esc(AD.pasteText||'')}</textarea></label>
+     <p class="hint">사유: 질병결, 미인정결, 인정결, 전입 (생략하면 질병결). 줄에 ‘2차’라고 쓰면 그 줄은 2차 시험으로 들어갑니다. 같은 학생·같은 사유 줄은 한 칸으로 합쳐지고, 부과 방법은 사유에 맞게 자동으로 정해집니다. 기준점수는 질병결이면 다른 시험 점수, 미인정결이면 해당 과목 최하점입니다.</p>
+     <button class="btn ok" data-act="pasteExams">↓ 아래 목록에 추가</button>
+    </div>
     ${AD.exams.map((e,i)=>examCard(e,i,'exams',m,true)).join('')}
     <button class="btn" data-act="addExamAD">+ 학생 직접 추가</button>
    </div>
@@ -757,10 +764,7 @@ function adminSettingsHTML(){
     ${F('결재란 칸 (쉼표로)','approvalLabels',CE.approvalLabels,'placeholder="부장, 교감"')}
     ${F('결재란 아래 칸 글자 (쉼표로)','approvalSigns',CE.approvalSigns,'placeholder=", 전결"')}
    </div></div>
-   <div class="card"><h2>학년별 명단 · 교과 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-ceg')}</h2>
-    <label class="f wall"><span><b>${CE_G}학년 인정점 대상 학생</b> — 한 줄에 “학번 이름 사유 [정기]” (사유: 전입, 질병결, 미인정결, 인정결 또는 직접)</span>
-    <textarea data-k="rosterText.${CE_G}" rows="6" placeholder="3101 홍길동 전입&#10;3202 김철수 질병결 정기&#10;3303 이영희 미인정결 정기만">${esc(CE.rosterText[CE_G]||'')}</textarea></label>
-    <p class="hint">줄 끝 표시 — <b>(표시 없음)</b> 교사 화면 수행평가 버튼에만 · <b>정기</b> 교사 화면 + ② 정기시험 결시생 버튼 모두 · <b>정기만</b> ② 정기시험 결시생 버튼에만 (교사 화면에는 안 나옴)<br>교사가 학번을 넣으면 이름·사유가 자동으로 채워지고, 명단에 없는 학번이면 경고합니다.</p>
+   <div class="card"><h2>학년별 교과 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-ceg')}</h2>
     <table class="set-tbl" style="margin-top:10px"><tr><th style="width:16%">교과</th><th style="width:28%">${CE_G}학년 참가교사 (기본값)</th><th>${CE_G}학년 수행평가 영역 (쉼표로)</th><th style="width:44px"></th></tr>
      ${CE.subjects.map((s,i)=>`<tr><td><input data-k="subjects.${i}.name" value="${esc(s.name)}"></td><td><input data-k="subjects.${i}.teachers.${CE_G}" value="${esc(s.teachers[CE_G]||'')}"></td><td><input data-k="subjects.${i}.areas.${CE_G}" value="${esc(s.areas[CE_G]||'')}"></td><td><button class="btn sm del" data-act="delSubj" data-i="${i}">×</button></td></tr>`).join('')}
     </table>
@@ -844,6 +848,35 @@ const ACT = {
   addPerfStu(d){ M.perf.push(newPerf(M, findStu(M.grade,d.sid))); rerender(); },
   addExam(){ const e=newExam(M); M.exam.push(e); rerender(); },
   addExamStu(d){ AD.exams.push(newExam(ctxM(), findStu(AD.grade,d.sid), true)); rerender(); },
+  pasteExams(){
+    const ctx=ctxM(); let nAdd=0, nMerge=0; const bad=[];
+    String(AD.pasteText||'').split(/\r?\n/).forEach(line=>{
+      const t=line.split(/\t|\s+/).map(x=>x.trim()).filter(Boolean); if(!t.length) return;
+      if(!/^\d{3,6}$/.test(t[0])){ if(!/학번|이름|성명/.test(line)) bad.push(line); return; }
+      const sid=t[0]; let name='', reason='', reasonText='', exam=AD.pasteExam||'1차 시험'; const subs=[];
+      t.slice(1).forEach(x=>{
+        if(/^[12]차(시험)?$/.test(x)){ exam=x[0]+'차 시험'; return; }
+        if(x==='시험'||x==='고사') return;
+        if(REASONS.includes(x)){ reason=x; return; }
+        if(/^(질병|질병결석)$/.test(x)){ reason='질병결'; return; }
+        if(/^(미인정|미인정결석|무단|무단결석)$/.test(x)){ reason='미인정결'; return; }
+        if(/^(인정|출석인정|인정결석)$/.test(x)){ reason='인정결'; return; }
+        if(/^-?\d+(\.\d+)?점?$/.test(x)){ if(subs.length&&subs[subs.length-1].base==='') subs[subs.length-1].base=x.replace('점',''); return; }
+        if(!name){ name=x; return; }
+        subs.push({subj:x.replace(/[:：]$/,''),base:'',score:''});
+      });
+      if(!reason) reason='질병결';
+      let e=AD.exams.find(o=>o.sid===sid&&o.reason===reason&&o.exam===exam);
+      if(!e){ e=newExam(ctx,{sid,name,reason},true); e.exam=exam; e.otherExam=exam==='1차 시험'?'2차 시험':'1차 시험'; e.subjects=[]; AD.exams.push(e); nAdd++; } else nMerge++;
+      if(name&&!e.name) e.name=name;
+      subs.forEach(s=>{ const o=e.subjects.find(z=>z.subj===s.subj); if(o){ if(s.base!=='') o.base=s.base; } else e.subjects.push(s); });
+      if(!e.subjects.length) e.subjects.push({subj:'',base:'',score:''});
+      e.subjects=e.subjects.filter((z,i,a)=>z.subj||a.length===1);
+    });
+    if(!nAdd&&!nMerge){ alert('추가할 줄을 찾지 못했습니다. 한 줄에 “학번 이름 사유 교과 점수” 순서로 적어 주세요.'); return; }
+    AD.pasteText=''; rerender();
+    toast(`학생 ${nAdd}명 추가${nMerge?`, ${nMerge}줄은 기존 칸에 합침`:''}. 확인 후 ‘저장’을 눌러 주세요.`+(bad.length?` (읽지 못한 줄 ${bad.length}개)`:''),5000);
+  },
   addExamAD(){ AD.exams.push(newExam(ctxM(),null,true)); rerender(); },
   delRow(d){ const arr=getPath(root(),d.p); if(confirm('이 칸을 삭제할까요?')){ arr.splice(+d.i,1); rerender(); } },
   dupRow(d){ const arr=getPath(root(),d.p); const o=arr[+d.i]; const n=newPerf(M,{sid:o.sid,name:o.name,reason:o.reason==='기타'?o.reasonText:o.reason}); n.subj=o.subj; n.area=''; arr.splice(+d.i+1,0,n); rerender(); },
@@ -896,7 +929,7 @@ const ACT = {
     if(!API_URL){ alert('먼저 서버를 연결하세요.'); return; }
     const c={year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
       subjects:CE.subjects.filter(s=>String(s.name).trim()).map(s=>({name:s.name.trim(),teachers:s.teachers,areas:s.areas})),
-      roster:{1:parseRoster(CE.rosterText['1']),2:parseRoster(CE.rosterText['2']),3:parseRoster(CE.rosterText['3'])}, reg:CE.reg};
+      roster:{1:[],2:[],3:[]}, reg:CE.reg};
     try{ await api('set',{key:'config', value:c}); CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('설정을 저장했습니다. 교사 화면에 바로 반영됩니다.'); }
     catch(e){ alert('저장 실패: '+e.message); }
   }
