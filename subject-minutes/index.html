@@ -45,6 +45,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid #9db7ee;border-color:v
 .row-card.exam{border-left-color:#8a4fd0}
 .rc-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:bold}
 .rc-head .sp{flex:1}
+details.rc-fold>summary{list-style:none;cursor:pointer;margin-bottom:0}
+details.rc-fold>summary::-webkit-details-marker{display:none}
+details.rc-fold[open]>summary{margin-bottom:8px}
+details.rc-fold .fold-ar{display:inline-block;width:16px;color:var(--sub);transition:transform .15s}
+details.rc-fold:not([open]) .fold-ar{transform:rotate(-90deg)}
+details.rc-fold>summary [data-sum]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .calc{margin:8px 0 6px;padding:7px 10px;background:var(--pri2);border-radius:6px;font-size:13.5px;line-height:1.6}
 .calc b{color:var(--pri)}
 .calc .err{color:var(--bad)}
@@ -152,7 +158,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.7';
+const APP_VERSION = '1.8';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -296,6 +302,7 @@ let CFG = clone(DEFAULT_CFG);
 function normalizeCfg(c){
   c = Object.assign(clone(DEFAULT_CFG), c||{});
   c.reg = Object.assign({}, REG_DEFAULT, c.reg||{});
+  c.schedule = c.schedule||{};
   c.roster = Object.assign({1:[],2:[],3:[]}, c.roster||{});
   c.subjects = (c.subjects||[]).map(s=>({name:s.name||'', teachers:Object.assign({1:'',2:'',3:''},s.teachers||{}), areas:Object.assign({1:'',2:'',3:''},s.areas||{})}));
   return c;
@@ -397,6 +404,11 @@ function basisOf(kind, o){
 }
 
 /* ===================== 협의록 데이터 ===================== */
+const schedKey=(y,g,s)=>`${y}|${g}|${s}`;
+function schedFor(m){ const sc=(CFG.schedule||{})[schedKey(m.year,m.grade,m.sem)]; if(!sc) return null;
+  const b=((sc.bySubj||{})[subjName(m)])||{}; const pick=k=>String(b[k]||'').trim()||String(sc[k]||'').trim();
+  const o={date:pick('date'),t1:pick('t1'),t2:pick('t2'),place:pick('place')}; return (o.date||o.t1||o.t2||o.place)?o:null; }
+function applySchedule(){ const o=schedFor(M); if(!o) return false; let ch=false; ['date','t1','t2','place'].forEach(k=>{ if(o[k]&&M[k]!==o[k]){ M[k]=o[k]; ch=true; } }); return ch; }
 function subjName(m){ return m.subject==='__custom' ? (m.subjectCustom||'').trim() : (m.subject||''); }
 function curSem(){ const mo=new Date().getMonth()+1; return (mo>=8||mo<=2)?'2':'1'; }
 function newMinutes(){ return {year:String(CFG.year), grade:'3', sem:curSem(), subject:'', subjectCustom:'', date:todayISO(), t1:'13:00', t2:'13:20', place:'', teachers:'', none:false, perf:[], exam:[], agendaManual:false, agenda:'', extraTitle:'', extra:''}; }
@@ -543,6 +555,9 @@ function areaField(r,k,m){
   return `<label class="f w2"><span>평가명(본교) <small style="color:#1d8a4e">평가부 지정 영역</small></span><select data-areasel="${k}">${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o]; const sel=custom?v==='__custom':String(v)===String(r.area||''); return `<option value="${esc(v)}"${sel?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`
     + (custom?F('평가명 직접 입력',k+'.area',r.area,'placeholder="평가명을 입력하세요"','w2'):'');
 }
+function sumPerf(r,m){ const c=perfCalc(r); const sc=fmt(c.score); return [r.name&&`${r.name}${r.sid?` (${r.sid})`:''}`, reasonLabel(r), r.area, sc?`→ ${sc}점`:''].filter(Boolean).join(' · '); }
+function sumExam(e,m){ return [e.name&&`${e.name}${e.sid?` (${e.sid})`:''}`, reasonLabel(e), e.exam, (e.subjects||[]).filter(x=>x.subj||x.base!=='').map(x=>`${x.subj||subjName(m)} ${fmt(examCalc(e,x))}`).join(', ')].filter(Boolean).join(' · '); }
+function foldBar(P){ return `<div style="display:flex;gap:6px;justify-content:flex-end;margin:-4px 0 4px"><button class="btn sm" data-act="foldAll" data-p="${P}" data-v="0">모두 접기</button><button class="btn sm" data-act="foldAll" data-p="${P}" data-v="1">모두 펼치기</button></div>`; }
 function perfCard(r,i,P,m){
   const k=`${P}.${i}`;
   let mf='';
@@ -551,8 +566,8 @@ function perfCard(r,i,P,m){
   if(r.method==='avg') mf = F('결시고사(이 평가) 평균',k+'.avgAbs',r.avgAbs,'inputmode="decimal" placeholder="예: 76"')+F('응시(기준)고사명',k+'.otherArea',r.otherArea,'placeholder="예: 학습과정 포트폴리오"')+F('응시(기준)고사 평균',k+'.avgTake',r.avgTake,'inputmode="decimal" placeholder="예: 98.6"')+F('학생의 응시(기준)고사 점수',k+'.takeScore',r.takeScore,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal"');
   if(r.method==='count') mf = F('세는 것',k+'.unit',r.unit,'placeholder="학습지"')+F('개수',k+'.count',r.count,'inputmode="decimal"')+F('1개당 점수',k+'.per',r.per,'inputmode="decimal"')+F('만점',k+'.max',r.max,'inputmode="decimal"');
   if(r.method==='manual') mf = F('인정점 부과 방법(표에 들어갈 문구)',k+'.methodText',r.methodText,'','wall')+F('기준점수',k+'.base',r.base,'inputmode="decimal"')+F('인정점',k+'.score',r.score,'inputmode="decimal"');
-  return `<div class="row-card">
-   <div class="rc-head">수행평가 ${i+1}. <span style="font-weight:normal">${esc(r.name||'')}</span><span class="sp"></span><button class="btn sm" data-act="dupRow" data-p="${P}" data-i="${i}" title="같은 학생의 다른 평가 추가">같은 학생 평가 추가</button><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></div>
+  return `<details class="row-card rc-fold" data-open="${k}" ${r._open===false?'':'open'}>
+   <summary class="rc-head"><span class="fold-ar">▾</span>수행평가 ${i+1}. <span style="font-weight:normal" data-sum="perf" data-path="${k}">${esc(sumPerf(r,m))}</span><span class="sp"></span><button class="btn sm" data-act="dupRow" data-p="${P}" data-i="${i}" title="같은 학생의 다른 평가 추가">같은 학생 평가 추가</button><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></summary>
    <div class="grid">
     ${F('학번',k+'.sid',r.sid,`list="dlRoster" data-sid="${k}" placeholder="예: 3129"`)}
     ${F('이름',k+'.name',r.name)}
@@ -567,7 +582,7 @@ function perfCard(r,i,P,m){
    <div class="calc" data-calc="perf" data-path="${k}"></div>
    <div class="note-h">부여 사유 (자동 작성 · 고쳐 써도 됩니다) <button class="btn sm" data-act="resetNote" data-path="${k}">자동 문장으로 되돌리기</button></div>
    <textarea data-k="${k}.note" data-note="${k}" data-kind="perf" rows="3"></textarea>
-  </div>`;
+  </details>`;
 }
 function examCard(e,i,P,m,admin){
   const k=`${P}.${i}`;
@@ -579,8 +594,8 @@ function examCard(e,i,P,m,admin){
      ${F(e.method==='lowest'?'해당 과목 최하점':'기준점수',`${k}.subjects.${j}.base`,s.base,'inputmode="decimal"')}
      ${e.method==='manual'?F('인정점',`${k}.subjects.${j}.score`,s.score,'inputmode="decimal"'):`<label class="f"><span>인정점</span><input disabled data-calc="examScore" data-path="${k}" data-j="${j}"></label>`}
      <button class="btn sm del" data-act="delSub" data-path="${k}" data-j="${j}">×</button></div>`).join('');
-  return `<div class="row-card exam">
-   <div class="rc-head">정기시험 ${i+1}. <span style="font-weight:normal">${esc(e.name||'')}</span><span class="sp"></span><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></div>
+  return `<details class="row-card exam rc-fold" data-open="${k}" ${e._open===false?'':'open'}>
+   <summary class="rc-head"><span class="fold-ar">▾</span>정기시험 ${i+1}. <span style="font-weight:normal" data-sum="exam" data-path="${k}">${esc(sumExam(e,m))}</span><span class="sp"></span><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></summary>
    <div class="grid">
     ${F('학번',k+'.sid',e.sid,`list="dlRoster" data-sid="${k}" data-kind="exam"`)}
     ${F('이름',k+'.name',e.name)}
@@ -595,7 +610,7 @@ function examCard(e,i,P,m,admin){
    ${admin?`<details style="margin-top:6px"><summary style="font-weight:normal;font-size:13px">부여표 '근거' 칸 직접 입력 (비우면 사유에 맞게 자동)</summary><textarea data-k="${k}.basis" rows="3">${esc(e.basis||'')}</textarea></details>`:''}
    <div class="note-h">부여 사유 (자동 작성 · 고쳐 써도 됩니다) <button class="btn sm" data-act="resetNote" data-path="${k}">자동 문장으로 되돌리기</button></div>
    <textarea data-k="${k}.note" data-note="${k}" data-kind="exam" rows="2"></textarea>
-  </div>`;
+  </details>`;
 }
 
 /* ===================== 화면 상태 ===================== */
@@ -605,6 +620,7 @@ let EXIST = null;        // 교사: 서버에 이미 제출된 협의록
 let AD = {sel:[], tab:'status', year:'', grade:'3', sem:'', minutes:[], loaded:false, exams:[], examsLoaded:false, viewKey:'', gen:''};
 let CE = null;           // 설정 편집본
 let CE_G = '3';
+let CE_S = '';
 const root = ()=> VIEW==='teacher' ? M : (AD.tab==='settings' ? CE : AD);
 const ctxM = ()=> VIEW==='teacher' ? M : {year:AD.year, grade:AD.grade, sem:AD.sem, subject:''};
 
@@ -613,6 +629,7 @@ const refresh = debounce(()=>{ updateComputed(); updatePreview(); saveDraft(); }
 
 function updateComputed(){
   const R=root(), m=ctxM();
+  $$('[data-sum]').forEach(el=>{ const o=getPath(R,el.dataset.path); if(o) el.textContent=el.dataset.sum==='perf'?sumPerf(o,m):sumExam(o,m); });
   $$('[data-calc="perf"]').forEach(el=>{
     const r=getPath(R,el.dataset.path); if(!r) return; const c=perfCalc(r);
     const ok=!isNaN(c.score)&&isFinite(c.score);
@@ -645,7 +662,7 @@ function renderTeacher(){
      ${SEL('학기','sem',m.sem,[['1','1학기'],['2','2학기']],'data-chk')}
      ${SEL('교과','subject',m.subject,subjOpts,'data-rr data-chk data-subj')}
      ${m.subject==='__custom'?F('교과명 입력','subjectCustom',m.subjectCustom,'data-chk'):''}
-     ${F('날짜','date',m.date,'type="date"')}
+     ${F('날짜','date',m.date,'type="date"')}${(()=>{ const o=schedFor(m); return o?`<div class="hint" style="grid-column:1/-1;margin:-2px 0 0;color:#1d8a4e">📅 평가부장이 정한 일정: ${o.date?fmtDate(o.date):''} ${o.t1||''}${o.t2?'~'+o.t2:''} ${esc(o.place||'')} (교과 상황에 맞게 바꿔도 됩니다)</div>`:''; })()}
      ${F('시작 시간','t1',m.t1,'type="time"')}
      ${F('끝 시간','t2',m.t2,'type="time"')}
      ${F('장소','place',m.place,'placeholder="예: 307호"')}
@@ -660,11 +677,11 @@ function renderTeacher(){
    ${m.none?'':`
    <div class="card"><h2>③ 수행평가 인정점 <small>학생마다, 평가마다 한 칸씩</small></h2>
     ${absChipsHTML(m)}
-    ${m.perf.map((r,i)=>perfCard(r,i,'perf',m)).join('')}
+    ${m.perf.length>1?foldBar('perf'):''}${m.perf.map((r,i)=>perfCard(r,i,'perf',m)).join('')}
     <button class="btn" data-act="addPerf">+ 학생 직접 추가</button>
    </div>
    <div class="card"><h2>④ 정기시험 인정점 <small>교과에서 협의할 내용이 있을 때만 (예: 전입생 정기시험)</small></h2>
-    ${m.exam.map((e,i)=>examCard(e,i,'exam',m,false)).join('')}
+    ${m.exam.length>1?foldBar('exam'):''}${m.exam.map((e,i)=>examCard(e,i,'exam',m,false)).join('')}
     <button class="btn" data-act="addExam">+ 정기시험 인정점 추가</button>
    </div>`}
    <div class="card"><h2>⑤ 논의 사항 · 기타</h2>
@@ -820,7 +837,7 @@ function adminExamsHTML(){
      <button class="btn ok" data-act="pasteExams">↓ 아래 목록에 추가</button>
      </div>
     </details>
-    ${AD.exams.map((e,i)=>examCard(e,i,'exams',m,true)).join('')}
+    ${AD.exams.length>1?foldBar('exams'):''}${AD.exams.map((e,i)=>examCard(e,i,'exams',m,true)).join('')}
     <button class="btn" data-act="addExamAD">+ 학생 직접 추가</button>
    </div>
    ${fromMin.length?`<div class="card"><h2>교과 협의록에서 온 정기시험 인정점 <small>(자동 포함)</small></h2>${fromMin.map(e=>`<div>· ${esc(e.name)}(${esc(e.sid)}) ${esc(e.exam)} ${e.subjects.map(s=>esc(s.subj)+' '+fmt(s.score)).join(', ')}</div>`).join('')}</div>`:''}
@@ -865,7 +882,23 @@ function generateTableHTML(){
 function startSettings(){
   CE = clone(CFG);
   CE.rosterText = {}; ['1','2','3'].forEach(g=>CE.rosterText[g]=(CFG.roster[g]||[]).map(s=>[s.sid,s.name,s.reason,s.exam].filter(Boolean).join(' ')).join('\n'));
-  CE.apiUrl = API_URL;
+  CE.apiUrl = API_URL; CE.schedule=clone(CFG.schedule||{}); if(!CE_S) CE_S=curSem();
+}
+function scheduleCardHTML(){
+  const key=schedKey(CE.year,CE_G,CE_S); const sc=(CE.schedule[key]=CE.schedule[key]||{date:'',t1:'',t2:'',place:'',bySubj:{}}); sc.bySubj=sc.bySubj||{};
+  const P=`schedule.${key}`;
+  const rows=CE.subjects.filter(x=>String(x.name).trim()).map(x=>{ const b=(sc.bySubj[x.name]=sc.bySubj[x.name]||{date:'',t1:'',t2:'',place:''}); const q=`${P}.bySubj.${x.name}`;
+    return `<tr><td>${esc(x.name)}</td><td><input type="date" data-k="${q}.date" value="${esc(b.date)}"></td><td><input type="time" data-k="${q}.t1" value="${esc(b.t1)}"></td><td><input type="time" data-k="${q}.t2" value="${esc(b.t2)}"></td><td><input data-k="${q}.place" value="${esc(b.place)}" placeholder="${esc(sc.place||'')}"></td></tr>`; }).join('');
+  return `<div class="card"><h2>📅 협의록 날짜·시간 미리 정하기 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-ceg')}${SEL('','_s',CE_S,[['1','1학기'],['2','2학기']],'data-ces')}</h2>
+   <p class="hint">${esc(CE.year)}학년도 ${CE_G}학년 ${CE_S}학기 협의록에 미리 채워질 일정입니다. 교사가 교과를 고르면 자동으로 들어가고, 교사가 바꿀 수도 있습니다.</p>
+   <div class="grid">
+    ${F('공통 날짜',P+'.date',sc.date,'type="date"')}${F('시작 시간',P+'.t1',sc.t1,'type="time"')}${F('끝 시간',P+'.t2',sc.t2,'type="time"')}${F('장소 (선택)',P+'.place',sc.place,'placeholder="비우면 교과마다 입력"')}
+   </div>
+   <details style="margin-top:8px" ${Object.values(sc.bySubj).some(b=>b.date||b.t1||b.t2||b.place)?'open':''}><summary style="font-weight:normal">교과마다 다르게 정하기 (비운 칸은 공통 일정 사용)</summary>
+    <table class="set-tbl" style="margin-top:6px"><tr><th style="width:16%">교과</th><th>날짜</th><th>시작</th><th>끝</th><th>장소</th></tr>${rows}</table>
+   </details>
+   <div style="margin-top:8px"><button class="btn sm" data-act="clearSched">이 학년·학기 일정 비우기</button> <span class="hint">아래 <b>💾 설정 저장</b>을 눌러야 반영됩니다.</span></div>
+  </div>`;
 }
 function adminSettingsHTML(){
   if(!CE) startSettings();
@@ -893,6 +926,7 @@ function adminSettingsHTML(){
     <label class="f"><span>새 비밀번호</span><input type="password" data-k="newpw" value="${esc(CE.newpw||'')}" autocomplete="new-password"></label>
     <label class="f"><span>새 비밀번호 확인</span><input type="password" data-k="newpw2" value="${esc(CE.newpw2||'')}" autocomplete="new-password"></label></div>
     <div style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-act="changePw">비밀번호 바꾸기</button><button class="btn del" data-act="logout">이 컴퓨터에서 로그아웃</button></div></div>`):''}
+   ${scheduleCardHTML()}
    <div class="card"><h2>기본 정보</h2><div class="grid">
     ${F('학년도(기본값)','year',CE.year,'inputmode="numeric"')}
     ${F('결재란 칸 (쉼표로)','approvalLabels',CE.approvalLabels,'placeholder="부장, 교감"')}
@@ -1068,6 +1102,8 @@ async function importAbsFiles(files){
     toast('결시생 명단을 저장했습니다. 정기시험은 기준점수를 채우고 ‘저장’을 눌러 주세요.',5000);
   }catch(e){ alert('가져오기 실패: '+e.message); }
 }
+function cleanSched(S){ const out={}; Object.keys(S||{}).forEach(k=>{ const sc=S[k]; const b={}; Object.keys(sc.bySubj||{}).forEach(n=>{ const x=sc.bySubj[n]; if(x.date||x.t1||x.t2||x.place) b[n]={date:x.date||'',t1:x.t1||'',t2:x.t2||'',place:x.place||''}; });
+  if(sc.date||sc.t1||sc.t2||sc.place||Object.keys(b).length) out[k]={date:sc.date||'',t1:sc.t1||'',t2:sc.t2||'',place:sc.place||'',bySubj:b}; }); return out; }
 function parseRoster(t){ return String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ let p=l.split(/[\s,\t]+/); let exam=''; const last=p[p.length-1]; if(p.length>2&&/^(정기만|정기시험만)$/.test(last)){ exam='정기만'; p=p.slice(0,-1); } else if(p.length>2&&/^(정기|정기시험)$/.test(last)){ exam='정기'; p=p.slice(0,-1); } return {sid:p[0]||'', name:p[1]||'', reason:p.slice(2).join(' ')||'', exam}; }).filter(s=>s.sid); }
 
 /* ===================== 행동 ===================== */
@@ -1130,6 +1166,7 @@ const ACT = {
     AD.absent=AD.absent||{perf:[]}; AD.absent.perf=(AD.absent.perf||[]).concat(add);
     try{ await ACT.saveAbsent('결시생 명단 저장하는 중'); AD.absPaste=''; AD.absPasteOpen=false; rerender(); toast(`${add.length}명을 추가했습니다.`); }catch(e){ alert('저장 실패: '+e.message); } },
   async delAbsRow(d){ const r=AD.absent.perf[+d.i]; if(!r||!confirm(`${r.subj} 결시생 ${r.name}(${r.sid})을(를) 명단에서 뺄까요?`)) return; AD.absent.perf.splice(+d.i,1); try{ await ACT.saveAbsent('지우는 중'); rerender(); }catch(e){ alert(e.message); } },
+  foldAll(d){ const arr=getPath(root(),d.p)||[]; arr.forEach(o=>o._open=d.v==='1'); rerender(); },
   pickAbs(){ if(!API_URL){ alert('먼저 ④ 설정에서 서버를 연결하세요.'); return; } $('#absFile').click(); },
   async delAbsSubj(d){ if(!confirm(`${d.s} 수행평가 결시생 명단을 지울까요?`)) return; AD.absent.perf=(AD.absent.perf||[]).filter(r=>r.subj!==d.s); try{ await busy('지우는 중',api('set',{key:absKey(),value:AD.absent})); rerender(); toast('지웠습니다.'); }catch(e){ alert(e.message); } },
   addExamAD(){ AD.exams.push(newExam(ctxM(),null,true)); rerender(); },
@@ -1187,6 +1224,7 @@ const ACT = {
     rerender(); toast(`${f}학년 참가교사 ${c}개 교과를 ${t}학년으로 가져왔습니다. ‘설정 저장’을 눌러 주세요.`,4000); },
   importXls(){ $('#xlsFile').click(); },
   async xlsTemplate(){ try{ const X=await loadXLSX(); const rows=[['학년','교과','수행평가 영역','참가교사']]; ['1','2','3'].forEach(g=>CE.subjects.forEach(s=>rows.push([g+'학년',s.name,s.areas[g]||'',s.teachers[g]||'']))); const ws=X.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:8},{wch:12},{wch:50},{wch:24}]; const wb=X.utils.book_new(); X.utils.book_append_sheet(wb,ws,'수행평가 영역'); X.writeFile(wb,'수행평가영역_양식.xlsx'); }catch(e){ alert(e.message); } },
+  clearSched(){ const key=schedKey(CE.year,CE_G,CE_S); if(confirm(`${CE.year}학년도 ${CE_G}학년 ${CE_S}학기 일정을 비울까요?`)){ delete CE.schedule[key]; rerender(); } },
   addSubj(){ CE.subjects.push({name:'',teachers:{1:'',2:'',3:''},areas:{1:'',2:'',3:''}}); rerender(); },
   delSubj(d){ if(confirm(`'${CE.subjects[+d.i].name}' 교과를 목록에서 뺄까요?`)){ CE.subjects.splice(+d.i,1); rerender(); } },
   resetReg(){ if(confirm('규정 문구를 기본값으로 되돌릴까요?')){ CE.reg=Object.assign({},REG_DEFAULT); rerender(); } },
@@ -1194,7 +1232,7 @@ const ACT = {
     if(!API_URL){ alert('먼저 서버를 연결하세요.'); return; }
     const c={year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
       subjects:CE.subjects.filter(s=>String(s.name).trim()).map(s=>({name:s.name.trim(),teachers:s.teachers,areas:s.areas})),
-      roster:{1:[],2:[],3:[]}, reg:CE.reg};
+      roster:{1:[],2:[],3:[]}, reg:CE.reg, schedule:cleanSched(CE.schedule)};
     try{ await busy('설정 저장하는 중',api('set',{key:'config', value:c})); CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('설정을 저장했습니다. 교사 화면에 바로 반영됩니다.'); }
     catch(e){ alert('저장 실패: '+e.message); }
   }
@@ -1203,7 +1241,7 @@ const ACT = {
 let RENDERING=false;
 function rerender(){ if(RENDERING){ setTimeout(rerender,0); return; } RENDERING=true; try{ const y=window.scrollY; if(VIEW==='teacher') renderTeacher(); else renderAdmin(); window.scrollTo(0,y); saveDraft(); } finally { RENDERING=false; } }
 
-document.addEventListener('toggle',e=>{ if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
+document.addEventListener('toggle',e=>{ const t=e.target; if(t&&t.dataset&&t.dataset.open){ const o=getPath(root(),t.dataset.open); if(o) o._open=t.open; if(VIEW==='teacher') saveDraft(); return; } if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-act]'); if(!b) return; e.preventDefault(); const f=ACT[b.dataset.act]; if(f) f(b.dataset,b); });
 document.addEventListener('input',e=>{
   const el=e.target, k=el.dataset.k; if(!k) return;
@@ -1221,6 +1259,7 @@ async function onChange(e){
   if(el.id==='xlsFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAreasFile(fs); return; }
   if(el.id==='absFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAbsFiles(fs); return; }
   if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
+  if(el.dataset.ces!==undefined){ CE_S=el.value; rerender(); return; }
   if(el.dataset.sid){ // 학번 → 이름·사유 자동
     const o=getPath(R,el.dataset.sid); const g=VIEW==='teacher'?M.grade:AD.grade; const s=findStu(g,o.sid);
     if(s){ o.name=s.name; const rs=REASONS.includes(s.reason)?s.reason:(s.reason?'기타':o.reason); if(rs!==o.reason||(rs==='기타'&&o.reasonText!==s.reason)){ o.reason=rs; if(rs==='기타') o.reasonText=s.reason; if(el.dataset.kind==='exam') applyExamDefaults(o); else applyPerfDefaults(o); } rerender(); }
@@ -1230,8 +1269,8 @@ async function onChange(e){
   if(el.dataset.exam){ const o=getPath(R,el.dataset.exam); o.otherExam=o.exam==='1차 시험'?'2차 시험':'1차 시험'; }
   if(el.dataset.subj!==undefined && VIEW==='teacher'){ const sc=subjCfg(subjName(M)); if(sc&&sc.teachers[M.grade]) M.teachers=sc.teachers[M.grade]; }
   if(VIEW==='admin' && (el.dataset.k==='year'||el.dataset.k==='grade'||el.dataset.k==='sem') && AD.tab!=='settings'){ AD.viewKey=''; AD.gen=''; await loadAdminData(); rerender(); return; }
+  if(el.dataset.chk!==undefined && VIEW==='teacher'){ const ch=applySchedule(); if(ch||el.dataset.rr!==undefined) rerender(); checkExisting(); return; }
   if(el.dataset.rr!==undefined) rerender();
-  if(el.dataset.chk!==undefined && VIEW==='teacher') checkExisting();
 }
 
 let SRV={st:'chk', why:''};
@@ -1269,6 +1308,7 @@ async function init(){
   if(VIEW==='teacher'){
     const d=localStorage.getItem('kc_draft');
     M = d ? Object.assign(newMinutes(), JSON.parse(d)) : newMinutes();
+    if(!d) applySchedule();
     renderTeacher();
     checkExisting();
   } else {
