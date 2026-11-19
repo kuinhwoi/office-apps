@@ -579,7 +579,7 @@ function renderTeacher(){
    </div>
    ${m.none?'':`
    <div class="card"><h2>③ 수행평가 인정점 <small>학생마다, 평가마다 한 칸씩</small></h2>
-    ${ros.length?`<div class="hint">명단에서 바로 추가:</div><div class="chips">${ros.map(s=>`<button class="chip" data-act="addPerfStu" data-sid="${esc(s.sid)}">＋ ${esc(s.name)} (${esc(s.sid)} · ${esc(s.reason||'')})</button>`).join('')}</div>`:''}
+    ${absChipsHTML(m)}
     ${m.perf.map((r,i)=>perfCard(r,i,'perf',m)).join('')}
     <button class="btn" data-act="addPerf">+ 학생 직접 추가</button>
    </div>
@@ -604,7 +604,20 @@ function renderTeacher(){
   <section class="preview-wrap"><div class="page" id="pv"></div></section></div>`;
   updateComputed(); updatePreview();
 }
+let ABSV=null, ABSK='';
+const absKeyOf=(y,g,s)=>`absent|${y}|${g}|${s}`;
+function absRowsFor(m){ const sub=subjName(m); return ((ABSV&&ABSV.perf)||[]).filter(r=>r.subj===sub); }
+function absChipsHTML(m){
+  const L=absRowsFor(m); if(!L.length) return '';
+  return `<div class="hint">평가부 결시생 명단(나이스)에서 바로 추가:</div><div class="chips">${L.map((r,i)=>{ const used=m.perf.some(p=>p.sid===r.sid&&p.area===r.area);
+    return `<button class="chip" data-act="addAbs" data-i="${i}" ${used?'disabled style="opacity:.45;cursor:default"':''}>${used?'✓':'＋'} ${esc(r.name)} (${esc(r.sid)} · ${esc(reasonLabel(r))}) · ${esc(r.area||'')}</button>`; }).join('')}</div>`;
+}
+async function loadAbsTeacher(){
+  if(!API_URL) return; const k=absKeyOf(M.year,M.grade,M.sem); if(k===ABSK) return;
+  try{ const j=await api('get',{key:k}); ABSV=j.value; ABSK=k; if(VIEW==='teacher') renderTeacher(); }catch(e){}
+}
 async function checkExisting(){
+  loadAbsTeacher();
   EXIST=null; const box=$('#exist'); if(box) box.innerHTML='';
   if(!API_URL||!subjName(M)) return;
   try{ const j=await api('get',{key:mkey(M)}); if(j.value){ EXIST=j.value; if(VIEW==='teacher') renderTeacher(); } }catch(e){}
@@ -630,14 +643,16 @@ function adminHead(){
    ${SEL('학기','sem',AD.sem,[['1','1학기'],['2','2학기']],'data-rr')}
    <span class="hint">학년·학기를 바꾸면 그 학년 자료를 보여 줍니다.</span></div>`;
 }
-const tabsHTML = ()=>`<div class="tabs">${[['status','① 제출 현황'],['exams','② 정기시험 결시생'],['gen','③ 인정점 부여표'],['settings','④ 설정']].map(([k,t])=>`<div class="tab ${AD.tab===k?'on':''}" data-act="tab" data-t="${k}">${t}</div>`).join('')}</div>`;
+const tabsHTML = ()=>`<div class="tabs">${[['status','① 제출 현황'],['exams','② 결시생 명단'],['gen','③ 인정점 부여표'],['settings','④ 설정']].map(([k,t])=>`<div class="tab ${AD.tab===k?'on':''}" data-act="tab" data-t="${k}">${t}</div>`).join('')}</div>`;
 const prefixAD = ()=>`minutes|${AD.year}|${AD.grade}|${AD.sem}|`;
 const examKey = ()=>`exams|${AD.year}|${AD.grade}|${AD.sem}`;
+const absKey = ()=>absKeyOf(AD.year,AD.grade,AD.sem);
 
 async function loadAdminData(force){
   if(!API_URL) return;
   try{
-    const [a,b]=await Promise.all([api('list',{prefix:prefixAD()}), api('get',{key:examKey()})]);
+    const [a,b,c]=await Promise.all([api('list',{prefix:prefixAD()}), api('get',{key:examKey()}), api('get',{key:absKey()})]);
+    AD.absent=c.value||{perf:[]};
     AD.minutes=a.items.map(x=>({key:x.key, m:x.value, updated:x.updated})).filter(x=>x.m);
     AD.exams=(b.value&&b.value.exams)||[]; AD.loaded=true; AD.examsLoaded=true;
   }catch(e){ toast('불러오기 실패: '+e.message,4000); }
@@ -676,11 +691,26 @@ function examPreviewHTML(){
 function normExamOne(e,m){ return {sid:e.sid,name:e.name,reason:reasonLabel(e),rk:e.reason,exam:e.exam,methodText:examText(e),basis:basisOf('exam',e),note:noteOf(e,m,'exam'),subjects:(e.subjects||[]).map(s=>({subj:s.subj||subjName(m),base:num(s.base),score:examCalc(e,s)}))}; }
 function collectExamRows(){ const out=[]; sortedMinutes().forEach(x=>{ if(!x.m.none) x.m.exam.forEach(e=>out.push(normExamOne(e,x.m))); }); return out; }
 function sortedMinutes(){ const ord=subjectOrder(); return [...AD.minutes].sort((a,b)=>ord.indexOf(subjName(a.m))-ord.indexOf(subjName(b.m))); }
+function absAdminListHTML(){
+  const L=(AD.absent&&AD.absent.perf)||[]; if(!L.length) return '<p class="hint">아직 올린 수행평가 결시생 명단이 없습니다.</p>';
+  const by={}; L.forEach(r=>(by[r.subj]=by[r.subj]||[]).push(r));
+  const ord=subjectOrder(); const names=Object.keys(by).sort((a,b)=>{const x=ord.indexOf(a),y=ord.indexOf(b);return (x<0?99:x)-(y<0?99:y);});
+  return `<table class="lst"><tr><th>교과</th><th>학생 (학번 · 사유 · 영역)</th><th style="width:90px"></th></tr>${names.map(n=>`<tr><td><b>${esc(n)}</b></td><td>${by[n].map(r=>`${esc(r.name)} (${esc(r.sid)} · ${esc(reasonLabel(r))} · ${esc(r.area)})`).join('<br>')}</td><td><button class="btn sm del" style="white-space:nowrap" data-act="delAbsSubj" data-s="${esc(n)}">지우기</button></td></tr>`).join('')}</table>`;
+}
 function adminExamsHTML(){
   const m=ctxM(); const ros=rosterOf(AD.grade).filter(x=>x.exam==='정기'||x.exam==='정기만');
   const fromMin=collectExamRows();
   return `<div class="layout"><section>
-   <div class="card"><h2>정기시험 결시생 인정점 <small>질병결·미인정결 등 평가부에서 직접 입력</small></h2>
+   <div class="card"><h2>📥 나이스 결시생 명단 올리기</h2>
+    <p class="hint">나이스에서 내려받은 <b>정기시험 결시생명단</b>, <b>수행평가 결시생명단</b>(교과별) 엑셀 파일을 여러 개 한꺼번에 올리면 됩니다. 파일에 적힌 학년도·학기·학년을 읽어 그 학년에 넣고 바로 저장합니다.</p>
+    <ul class="hint" style="margin:4px 0 8px 18px;padding:0"><li>정기시험 명단 → 아래 정기시험 결시생 칸이 자동으로 만들어집니다. 기준점수만 채우면 됩니다.</li><li>수행평가 명단 → 교사 화면에 그 교과 결시생 버튼으로 나옵니다. 같은 교과 파일을 다시 올리면 새 명단으로 바뀝니다.</li><li>학번은 학년+반+번호로 만듭니다 (예: 3학년 3반 5번 → 3305). 학적변동에 ‘전입’이 있으면 사유를 전입으로 넣습니다.</li></ul>
+    <button class="btn pri" data-act="pickAbs">📥 결시생 명단 파일 선택</button>
+    <input type="file" id="absFile" accept=".xlsx,.xls" multiple style="display:none">
+   </div>
+   <div class="card"><h2>수행평가 결시생 명단 <small>교사 화면에 표시됨 · ${esc(AD.grade)}학년 ${esc(AD.sem)}학기</small></h2>
+    ${absAdminListHTML()}
+   </div>
+   <div class="card"><h2>정기시험 결시생 인정점 <small>나이스 명단을 올리거나 붙여넣기·직접 입력</small></h2>
     <p class="hint">교과 협의록에 들어 있는 정기시험 인정점(예: 전입생)은 자동으로 부여표에 들어가니 여기서 다시 넣지 않아도 됩니다.</p>
     <div class="row-card" style="border-left-color:#1d8a4e;background:#f5fbf7">
      <div class="rc-head">📋 붙여넣기로 한꺼번에 추가</div>
@@ -775,11 +805,11 @@ function adminSettingsHTML(){
      ${['1','2','3'].filter(g=>g!==CE_G).map(g=>`<button class="btn sm" data-act="copyTeachers" data-from="${g}">${g}학년 → ${CE_G}학년</button>`).join('')}
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
-     <button class="btn sm pri" data-act="importXls">📥 엑셀로 수행평가 영역 가져오기</button>
+     <button class="btn sm pri" data-act="importXls">📥 수행평가 영역 가져오기 (학급별 일람표·엑셀)</button>
      <button class="btn sm" data-act="xlsTemplate">엑셀 양식 내려받기</button>
-     <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none">
+     <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" multiple style="display:none">
     </div>
-    <p class="hint">엑셀 첫 줄에 <b>학년 · 교과 · 수행평가 영역</b>(필요하면 <b>참가교사</b>) 제목을 두고 한 줄에 한 교과(또는 한 영역)씩 적으면 됩니다. 영역 여러 개는 쉼표로 쓰거나 줄을 나눠도 되고, 병합된 칸도 읽습니다. 학년 칸이 없으면 지금 고른 ${CE_G}학년으로 넣습니다. 가져온 뒤 <b>설정 저장</b>을 눌러야 반영됩니다.</p>
+    <p class="hint"><b>나이스 ‘수행평가 학급별 일람표’</b>를 올리면 교과별 수행평가 영역명을 읽어 그 학년에 자동으로 넣고 저장합니다 (여러 반 파일을 한꺼번에 올려도 됩니다).<br>직접 만든 엑셀은 첫 줄에 <b>학년 · 교과 · 수행평가 영역</b>(필요하면 <b>참가교사</b>) 제목을 두고 한 줄에 한 교과(또는 한 영역)씩 적으면 됩니다. 영역 여러 개는 쉼표로 쓰거나 줄을 나눠도 되고, 병합된 칸도 읽습니다. 학년 칸이 없으면 지금 고른 ${CE_G}학년으로 넣습니다.</p>
    </div>
    <div class="card"><details><summary>학업성적관리규정 문구 고치기</summary>
     ${Object.keys(REG_DEFAULT).map(k=>`<label class="f wall" style="margin:8px 0"><span>${esc(REG_LABELS[k]||k)}</span><textarea data-k="reg.${k}" rows="${Math.min(7,String(CE.reg[k]||'').split('\n').length+1)}">${esc(CE.reg[k]||'')}</textarea></label>`).join('')}
@@ -827,24 +857,119 @@ function areasFromSheets(sheets){
   });
   return found?out:null;
 }
-async function importAreasFile(file){
+async function importAreasFile(files){
   try{
-    const data=areasFromSheets(await readSheets(file));
+    files=[].concat(files); let data=null, ilram=false;
+    for(const f of files){ const sh=await readSheets(f); let d;
+      if(isIlram(sh)){ d=ilramFromSheets(sh); ilram=true; } else d=areasFromSheets(sh);
+      if(!d) continue; data=data||{};
+      Object.keys(d).forEach(g=>Object.keys(d[g]).forEach(n=>{ const o=((data[g]=data[g]||{})[n]=(data[g][n]||{areas:[],teachers:''})); d[g][n].areas.forEach(a=>{ if(!o.areas.includes(a)) o.areas.push(a); }); if(d[g][n].teachers) o.teachers=d[g][n].teachers; }));
+    }
     if(!data){ alert('엑셀에서 ‘수행평가 영역’(또는 ‘평가명’) 제목 칸을 찾지 못했습니다.\n‘엑셀 양식 내려받기’로 받은 양식에 맞춰 적어 주세요.'); return; }
     const lines=[]; Object.keys(data).sort().forEach(g=>Object.keys(data[g]).forEach(n=>{ const o=data[g][n]; if(o.areas.length||o.teachers) lines.push(`${g}학년 ${n}: ${o.areas.join(', ')||'(영역 없음)'}${o.teachers?' / 교사: '+o.teachers:''}`); }));
     if(!lines.length){ alert('가져올 내용이 없습니다.'); return; }
-    if(!confirm(`아래 내용으로 바꿉니다. (엑셀에 있는 교과만 바뀌고, 나머지 교과는 그대로입니다)\n\n${lines.slice(0,40).join('\n')}${lines.length>40?`\n… 외 ${lines.length-40}건`:''}`)) return;
+    if(!confirm(`아래 내용으로 바꾸고 저장합니다. (파일에 있는 교과만 바뀌고, 나머지 교과는 그대로입니다)\n\n${lines.slice(0,40).join('\n')}${lines.length>40?`\n… 외 ${lines.length-40}건`:''}`)) return;
     let added=0;
     Object.keys(data).forEach(g=>Object.keys(data[g]).forEach(n=>{ const o=data[g][n]; let sc=CE.subjects.find(x=>x.name===n); if(!sc){ sc={name:n,teachers:{1:'',2:'',3:''},areas:{1:'',2:'',3:''}}; CE.subjects.push(sc); added++; } if(o.areas.length) sc.areas[g]=o.areas.join(', '); if(o.teachers) sc.teachers[g]=o.teachers; }));
     const gs=Object.keys(data); if(gs.length===1) CE_G=gs[0];
-    rerender(); toast(`가져왔습니다${added?` (새 교과 ${added}개 추가)`:''}. 확인 후 ‘설정 저장’을 눌러 주세요.`,5000);
+    rerender(); if(API_URL){ await ACT.saveCfg(); toast(`수행평가 영역을 가져와 저장했습니다${added?` (새 교과 ${added}개 추가)`:''}.`,5000); } else toast(`가져왔습니다${added?` (새 교과 ${added}개 추가)`:''}. 서버 연결 후 ‘설정 저장’을 눌러 주세요.`,5000);
   }catch(e){ alert(e.message); }
+}
+/* ----- 나이스 결시생 명단 / 학급별 일람표 읽기 ----- */
+const cellsOf = rows=>rows.map(r=>r.map(c=>String(c??'').replace(/\s+/g,' ').trim()));
+function headInfo(rows){
+  const txt=rows.slice(0,12).map(r=>r.join(' ')).join(' ');
+  const m=txt.match(/(\d{4})\s*학년도\s*(\d)\s*학기.*?(\d)\s*학년(?!도)/);
+  return m?{year:m[1],sem:m[2],grade:m[3],txt}:{year:'',sem:'',grade:'',txt};
+}
+function mapReason(name, change){
+  const n=String(name||''), c=String(change||'');
+  if(/전입|편입/.test(c)) return {reason:'전입',reasonText:''};
+  if(/질병/.test(n)) return {reason:'질병결',reasonText:''};
+  if(/미인정|무단/.test(n)) return {reason:'미인정결',reasonText:''};
+  if(/출석인정|인정/.test(n)) return {reason:'인정결',reasonText:''};
+  if(/전입|편입/.test(n)) return {reason:'전입',reasonText:''};
+  return n?{reason:'기타',reasonText:n}:{reason:'질병결',reasonText:''};
+}
+function absFromSheets(sheets){
+  const out=[];
+  sheets.forEach(sh=>{
+    const rows=cellsOf(sh.rows); const H=headInfo(rows); const top=rows.slice(0,12).map(r=>r.join(' ')).join(' ');
+    const type=/정기시험\s*결시생\s*명단/.test(top)?'exam':(/수행평가\s*결시생\s*명단/.test(top)?'perf':''); if(!type) return;
+    const hi=rows.findIndex(r=>r.includes('성명')&&r.some(c=>/결시/.test(c))); if(hi<0) return;
+    const h=rows[hi], col=re=>h.findIndex(c=>re.test(c));
+    const cBan=col(/^반$/), cNo=col(/^번호$/), cName=col(/^성명$/), cItem=type==='exam'?col(/과목|교과/):col(/영역|평가/), cRs=col(/결시/), cCh=col(/학적/);
+    const em=top.match(/고사\s*:\s*(\d)\s*차/); const exam=em?em[1]+'차 시험':'1차 시험';
+    const sm=top.match(/교과목\s*:\s*(\S+)/); const subject=sm?sm[1].trim():'';
+    const recs=[];
+    for(let i=hi+1;i<rows.length;i++){ const r=rows[i]; const name=r[cName]||''; if(!name) continue;
+      const ban=parseInt(parseFloat(r[cBan])), no=parseInt(parseFloat(r[cNo])); if(isNaN(ban)||isNaN(no)) continue;
+      const sid=`${H.grade}${ban}${String(no).padStart(2,'0')}`; const rs=mapReason(r[cRs], cCh>=0?r[cCh]:'');
+      recs.push({sid,name,...rs,item:cItem>=0?r[cItem]:''}); }
+    out.push({type,year:H.year,sem:H.sem,grade:H.grade,exam,subject,recs});
+  });
+  return out;
+}
+function isIlram(sheets){ return sheets.some(sh=>cellsOf(sh.rows).slice(0,8).some(r=>r.some(c=>/학급별\s*일람표/.test(c)))); }
+function ilramFromSheets(sheets){
+  const out={};
+  sheets.forEach(sh=>{
+    const rows=cellsOf(sh.rows); const H=headInfo(rows); if(!H.grade) return;
+    const hi=rows.findIndex(r=>r.includes('성명')); if(hi<0) return;
+    const head=rows[hi], areaRow=rows[hi+1]||[]; const start=head.indexOf('성명')+1;
+    let cur=''; for(let c=start;c<Math.max(head.length,areaRow.length);c++){
+      const hv=head[c]||''; if(/합\s*계|비\s*고|총\s*점/.test(hv)) break; if(hv) cur=hv.replace(/\s*\(.*?\)\s*$/,'');
+      const a=areaRow[c]||''; if(!cur||!a||/만점/.test(a)) continue;
+      const o=((out[H.grade]=out[H.grade]||{})[cur]=(out[H.grade][cur]||{areas:[],teachers:''})); if(!o.areas.includes(a)) o.areas.push(a);
+    }
+  });
+  return out;
+}
+function mergeExamInto(list, ctx, rec){ // rec: {sid,name,reason,reasonText,exam,subj,base}
+  let e=list.find(o=>o.sid===rec.sid&&o.reason===rec.reason&&o.exam===rec.exam);
+  let added=false;
+  if(!e){ e=newExam(ctx,{sid:rec.sid,name:rec.name,reason:rec.reason==='기타'?(rec.reasonText||'기타'):rec.reason},true); e.exam=rec.exam; e.otherExam=rec.exam==='1차 시험'?'2차 시험':'1차 시험'; e.subjects=[]; list.push(e); added=true; }
+  if(rec.name&&!e.name) e.name=rec.name;
+  if(rec.subj){ const o=e.subjects.find(z=>z.subj===rec.subj); if(o){ if(rec.base!==''&&rec.base!=null) o.base=rec.base; } else e.subjects.push({subj:rec.subj,base:rec.base||'',score:''}); }
+  e.subjects=e.subjects.filter(z=>z.subj); if(!e.subjects.length) e.subjects.push({subj:'',base:'',score:''});
+  return added;
+}
+async function importAbsFiles(files){
+  try{
+    let all=[]; const bad=[];
+    for(const f of files){ const r=absFromSheets(await readSheets(f)); if(r.length) all=all.concat(r); else bad.push(f.name); }
+    if(!all.length){ alert('나이스 ‘정기시험 결시생명단’ 또는 ‘수행평가 결시생명단’ 파일이 아닙니다.\n'+bad.join('\n')); return; }
+    const miss=all.filter(x=>!x.year||!x.grade||!x.sem); if(miss.length){ alert('파일에서 학년도·학기·학년을 읽지 못했습니다.'); return; }
+    const groups={}; all.forEach(x=>(groups[`${x.year}|${x.grade}|${x.sem}`]=groups[`${x.year}|${x.grade}|${x.sem}`]||[]).push(x));
+    const lines=[]; Object.keys(groups).forEach(k=>{ const [y,g,sm]=k.split('|'); groups[k].forEach(x=>{ const n=new Set(x.recs.map(r=>r.sid)).size;
+      lines.push(x.type==='exam'?`${y}학년도 ${sm}학기 ${g}학년 정기 ${x.exam}: ${n}명 (${x.recs.length}과목)`:`${y}학년도 ${sm}학기 ${g}학년 수행평가 ${x.subject}: ${n}명 (${x.recs.length}건)`); }); });
+    if(!confirm('아래 결시생 명단을 저장합니다.\n\n'+lines.join('\n')+(bad.length?`\n\n(읽지 못한 파일: ${bad.join(', ')})`:''))) return;
+    let last='';
+    for(const k of Object.keys(groups)){
+      const [y,g,sm]=k.split('|'); const ctx={year:y,grade:g,sem:sm,subject:''};
+      const [ab,ex]=await Promise.all([api('get',{key:absKeyOf(y,g,sm)}), api('get',{key:`exams|${y}|${g}|${sm}`})]);
+      const absent=ab.value||{perf:[]}; absent.perf=absent.perf||[];
+      const exams=(ex.value&&ex.value.exams)||[];
+      let perfCh=false, examCh=false;
+      groups[k].forEach(x=>{
+        if(x.type==='perf'){ const sub=x.subject||'(교과 미상)'; absent.perf=absent.perf.filter(r=>r.subj!==sub).concat(x.recs.map(r=>({subj:sub,sid:r.sid,name:r.name,reason:r.reason,reasonText:r.reasonText,area:r.item}))); perfCh=true; }
+        else { x.recs.forEach(r=>mergeExamInto(exams,ctx,{sid:r.sid,name:r.name,reason:r.reason,reasonText:r.reasonText,exam:x.exam,subj:r.item,base:''})); examCh=true; }
+      });
+      const jobs=[]; if(perfCh){ absent.updated=new Date().toISOString(); jobs.push(api('set',{key:absKeyOf(y,g,sm),value:absent})); }
+      if(examCh) jobs.push(api('set',{key:`exams|${y}|${g}|${sm}`,value:{exams,savedAt:new Date().toISOString()}}));
+      await Promise.all(jobs); last=k;
+    }
+    const [y,g,sm]=last.split('|'); AD.year=y; AD.grade=g; AD.sem=sm; AD.gen='';
+    await loadAdminData(); AD.tab='exams'; rerender();
+    toast('결시생 명단을 저장했습니다. 정기시험은 기준점수를 채우고 ‘저장’을 눌러 주세요.',5000);
+  }catch(e){ alert('가져오기 실패: '+e.message); }
 }
 function parseRoster(t){ return String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ let p=l.split(/[\s,\t]+/); let exam=''; const last=p[p.length-1]; if(p.length>2&&/^(정기만|정기시험만)$/.test(last)){ exam='정기만'; p=p.slice(0,-1); } else if(p.length>2&&/^(정기|정기시험)$/.test(last)){ exam='정기'; p=p.slice(0,-1); } return {sid:p[0]||'', name:p[1]||'', reason:p.slice(2).join(' ')||'', exam}; }).filter(s=>s.sid); }
 
 /* ===================== 행동 ===================== */
 const ACT = {
   addPerf(){ M.perf.push(newPerf(M)); rerender(); },
+  addAbs(d){ const r=absRowsFor(M)[+d.i]; if(!r) return; const p=newPerf(M,{sid:r.sid,name:r.name,reason:r.reason==='기타'?(r.reasonText||'기타'):r.reason}); p.area=r.area||p.area; M.perf.push(p); rerender(); },
   addPerfStu(d){ M.perf.push(newPerf(M, findStu(M.grade,d.sid))); rerender(); },
   addExam(){ const e=newExam(M); M.exam.push(e); rerender(); },
   addExamStu(d){ AD.exams.push(newExam(ctxM(), findStu(AD.grade,d.sid), true)); rerender(); },
@@ -877,6 +1002,8 @@ const ACT = {
     AD.pasteText=''; rerender();
     toast(`학생 ${nAdd}명 추가${nMerge?`, ${nMerge}줄은 기존 칸에 합침`:''}. 확인 후 ‘저장’을 눌러 주세요.`+(bad.length?` (읽지 못한 줄 ${bad.length}개)`:''),5000);
   },
+  pickAbs(){ if(!API_URL){ alert('먼저 ④ 설정에서 서버를 연결하세요.'); return; } $('#absFile').click(); },
+  async delAbsSubj(d){ if(!confirm(`${d.s} 수행평가 결시생 명단을 지울까요?`)) return; AD.absent.perf=(AD.absent.perf||[]).filter(r=>r.subj!==d.s); try{ await api('set',{key:absKey(),value:AD.absent}); rerender(); toast('지웠습니다.'); }catch(e){ alert(e.message); } },
   addExamAD(){ AD.exams.push(newExam(ctxM(),null,true)); rerender(); },
   delRow(d){ const arr=getPath(root(),d.p); if(confirm('이 칸을 삭제할까요?')){ arr.splice(+d.i,1); rerender(); } },
   dupRow(d){ const arr=getPath(root(),d.p); const o=arr[+d.i]; const n=newPerf(M,{sid:o.sid,name:o.name,reason:o.reason==='기타'?o.reasonText:o.reason}); n.subj=o.subj; n.area=''; arr.splice(+d.i+1,0,n); rerender(); },
@@ -951,7 +1078,8 @@ async function onChange(e){
   const el=e.target; const R=root(); if(!R||!el.dataset) return;
   if(el.dataset.selkey){ const k=el.dataset.selkey; AD.sel=(AD.sel||[]).filter(x=>x!==k); if(el.checked) AD.sel.push(k); rerender(); return; }
   if(el.dataset.selall!==undefined){ AD.sel=el.checked?AD.minutes.map(x=>x.key):[]; rerender(); return; }
-  if(el.id==='xlsFile'){ const f=el.files&&el.files[0]; el.value=''; if(f) importAreasFile(f); return; }
+  if(el.id==='xlsFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAreasFile(fs); return; }
+  if(el.id==='absFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAbsFiles(fs); return; }
   if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
   if(el.dataset.sid){ // 학번 → 이름·사유 자동
     const o=getPath(R,el.dataset.sid); const g=VIEW==='teacher'?M.grade:AD.grade; const s=findStu(g,o.sid);
