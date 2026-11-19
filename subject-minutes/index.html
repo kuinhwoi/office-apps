@@ -111,6 +111,13 @@ table.it td.l{width:30%}
 .gdoc .exbox .exname{font-weight:bold}
 
 .prog{margin-top:14px}.prog .bar{height:10px;background:#e3e8f0;border-radius:6px;overflow:hidden}.prog .bar i{display:block;height:100%;width:0;background:var(--pri);border-radius:6px;transition:width .25s}.prog .pt{font-size:14px;color:var(--sub);margin-top:6px;display:flex;justify-content:space-between}
+#busy{position:fixed;inset:0;background:rgba(20,30,50,.28);display:none;align-items:center;justify-content:center;z-index:98}
+#busy.on{display:flex}
+#busy .bx{background:#fff;border-radius:12px;padding:18px 22px;width:min(360px,86vw);box-shadow:0 8px 30px rgba(0,0,0,.2)}
+#busy .bt{font-weight:bold;margin-bottom:10px}
+#busy .bar{height:10px;background:#e3e8f0;border-radius:6px;overflow:hidden}
+#busy .bar i{display:block;height:100%;width:0;background:var(--pri);transition:width .2s}
+#busy .bp{text-align:right;font-size:14px;color:var(--sub);margin-top:6px;font-weight:bold}
 #printRoot{display:none}
 @page{size:A4;margin:12mm}
 @media print{
@@ -132,13 +139,14 @@ table.it td.l{width:30%}
 <footer>제작: 과학교사 구인회 · <span id="verFoot"></span> · <a href="#" id="modeSwitch"></a></footer>
 <div id="printRoot"></div>
 <div id="toast"></div>
+<div id="busy"><div class="bx"><div class="bt" id="busyMsg">저장하는 중…</div><div class="bar"><i id="busyBar"></i></div><div class="bp" id="busyPct">0%</div></div></div>
 <datalist id="dlRoster"></datalist>
 <datalist id="dlAreas"></datalist>
 <datalist id="dlSubjects"></datalist>
 
 <script>
 'use strict';
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.5';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -239,6 +247,16 @@ function renderLock(mode,msg){
    ${mode==='login'?'<p class="hint" style="margin-top:12px">비밀번호를 잊었으면 Apps Script 편집기에서 <b>resetPassword</b> 함수를 실행한 뒤 다시 열어 새로 만드세요.</p>':''}
   </div>`;
   setTimeout(()=>{ const i=$('#pw1'); if(i){ i.focus(); i.addEventListener('keydown',e=>{ if(e.key==='Enter') ACT[mode==='create'?'doCreatePw':'doLogin'](); }); } const i2=$('#pw2'); if(i2) i2.addEventListener('keydown',e=>{ if(e.key==='Enter') ACT.doCreatePw(); }); },30);
+}
+/* ----- 저장 중 진행 표시 ----- */
+const BUSY={n:0,v:0,h:null};
+function busyDraw(){ $('#busyBar').style.width=BUSY.v+'%'; $('#busyPct').textContent=BUSY.v+'%'; }
+async function busy(msg, p){
+  if(BUSY.n++>0){ try{ return await p; } finally{ BUSY.n--; } }
+  $('#busyMsg').textContent=msg+'…'; BUSY.v=0; busyDraw(); $('#busy').classList.add('on');
+  clearInterval(BUSY.h); BUSY.h=setInterval(()=>{ if(BUSY.v<92){ BUSY.v+=BUSY.v<50?3:(BUSY.v<80?2:1); busyDraw(); } },90);
+  try{ const r=await p; clearInterval(BUSY.h); BUSY.v=100; busyDraw(); await new Promise(z=>setTimeout(z,280)); return r; }
+  finally{ clearInterval(BUSY.h); BUSY.n=0; $('#busy').classList.remove('on'); }
 }
 let PROG={v:0,cap:0,h:null};
 function progStart(host){ // host: 요소 안에 진행 막대를 붙임
@@ -992,7 +1010,7 @@ async function importAbsFiles(files){
       lines.push(x.type==='exam'?`${y}학년도 ${sm}학기 ${g}학년 정기 ${x.exam}: ${n}명 (${x.recs.length}과목)`:`${y}학년도 ${sm}학기 ${g}학년 수행평가 ${x.subject}: ${n}명 (${x.recs.length}건)`); }); });
     if(!confirm('아래 결시생 명단을 저장합니다.\n\n'+lines.join('\n')+(bad.length?`\n\n(읽지 못한 파일: ${bad.join(', ')})`:''))) return;
     let last='';
-    for(const k of Object.keys(groups)){
+    await busy('결시생 명단 저장하는 중',(async()=>{ for(const k of Object.keys(groups)){
       const [y,g,sm]=k.split('|'); const ctx={year:y,grade:g,sem:sm,subject:''};
       const [ab,ex]=await Promise.all([api('get',{key:absKeyOf(y,g,sm)}), api('get',{key:`exams|${y}|${g}|${sm}`})]);
       const absent=ab.value||{perf:[]}; absent.perf=absent.perf||[];
@@ -1005,7 +1023,7 @@ async function importAbsFiles(files){
       const jobs=[]; if(perfCh){ absent.updated=new Date().toISOString(); jobs.push(api('set',{key:absKeyOf(y,g,sm),value:absent})); }
       if(examCh) jobs.push(api('set',{key:`exams|${y}|${g}|${sm}`,value:{exams,savedAt:new Date().toISOString()}}));
       await Promise.all(jobs); last=k;
-    }
+    } })());
     const [y,g,sm]=last.split('|'); AD.year=y; AD.grade=g; AD.sem=sm; AD.gen='';
     await loadAdminData(); AD.tab='exams'; rerender();
     toast('결시생 명단을 저장했습니다. 정기시험은 기준점수를 채우고 ‘저장’을 눌러 주세요.',5000);
@@ -1050,7 +1068,7 @@ const ACT = {
     toast(`학생 ${nAdd}명 추가${nMerge?`, ${nMerge}줄은 기존 칸에 합침`:''}. 확인 후 ‘저장’을 눌러 주세요.`+(bad.length?` (읽지 못한 줄 ${bad.length}개)`:''),5000);
   },
   pickAbs(){ if(!API_URL){ alert('먼저 ④ 설정에서 서버를 연결하세요.'); return; } $('#absFile').click(); },
-  async delAbsSubj(d){ if(!confirm(`${d.s} 수행평가 결시생 명단을 지울까요?`)) return; AD.absent.perf=(AD.absent.perf||[]).filter(r=>r.subj!==d.s); try{ await api('set',{key:absKey(),value:AD.absent}); rerender(); toast('지웠습니다.'); }catch(e){ alert(e.message); } },
+  async delAbsSubj(d){ if(!confirm(`${d.s} 수행평가 결시생 명단을 지울까요?`)) return; AD.absent.perf=(AD.absent.perf||[]).filter(r=>r.subj!==d.s); try{ await busy('지우는 중',api('set',{key:absKey(),value:AD.absent})); rerender(); toast('지웠습니다.'); }catch(e){ alert(e.message); } },
   addExamAD(){ AD.exams.push(newExam(ctxM(),null,true)); rerender(); },
   delRow(d){ const arr=getPath(root(),d.p); if(confirm('이 칸을 삭제할까요?')){ arr.splice(+d.i,1); rerender(); } },
   dupRow(d){ const arr=getPath(root(),d.p); const o=arr[+d.i]; const n=newPerf(M,{sid:o.sid,name:o.name,reason:o.reason==='기타'?o.reasonText:o.reason}); n.subj=o.subj; n.area=''; arr.splice(+d.i+1,0,n); rerender(); },
@@ -1064,21 +1082,21 @@ const ACT = {
     if(warns.length && !confirm('확인할 점이 있습니다.\n\n- '+warns.join('\n- ')+'\n\n그래도 보낼까요?')) return;
     if(!confirm(`${subjName(M)} 협의록을 평가부장에게 보냅니다.${EXIST?'\n(이미 제출된 내용은 새 내용으로 바뀝니다.)':''}`)) return;
     const b=$('[data-act="submitM"]'); if(b){ b.disabled=true; b.textContent='보내는 중…'; }
-    try{ const v=clone(M); v.submittedAt=new Date().toISOString(); v.subject=subjName(M); v.subjectCustom=''; await api('submit',{key:mkey(M), value:v}); EXIST=v; toast('보냈습니다. 감사합니다!'); renderTeacher(); }
+    try{ const v=clone(M); v.submittedAt=new Date().toISOString(); v.subject=subjName(M); v.subjectCustom=''; await busy('평가부장에게 보내는 중',api('submit',{key:mkey(M), value:v})); EXIST=v; toast('보냈습니다. 감사합니다!'); renderTeacher(); }
     catch(e){ alert('보내지 못했습니다: '+e.message); if(b){ b.disabled=false; b.textContent='📨 확인했습니다 · 평가부장에게 보내기'; } }
   },
   loadExist(){ if(!EXIST) return; const v=clone(EXIST); if(!CFG.subjects.some(s=>s.name===v.subject)){ v.subjectCustom=v.subject; v.subject='__custom'; } M=Object.assign(newMinutes(),v); delete M.submittedAt; rerender(); toast('제출된 내용을 불러왔습니다.'); },
   resetM(){ if(confirm('작성 중인 내용을 모두 지우고 새로 작성할까요?')){ const keep={grade:M.grade,sem:M.sem,year:M.year}; M=Object.assign(newMinutes(),keep); rerender(); } },
   tab(d){ AD.tab=d.t; if(d.t==='settings') startSettings(); if(d.t==='gen') AD.gen=''; rerender(); },
-  async reload(){ await loadAdminData(true); AD.gen=''; rerender(); toast('최신 자료를 불러왔습니다.'); },
+  async reload(){ await busy('최신 자료 불러오는 중',loadAdminData(true)); AD.gen=''; rerender(); toast('최신 자료를 불러왔습니다.'); },
   viewM(d){ AD.viewKey=d.key; rerender(); },
   closeView(){ AD.viewKey=''; rerender(); },
   printOne(d){ const x=AD.minutes.find(x=>x.key===d.key); if(x) printDocs([minutesHTML(x.m)]); },
   printSel(){ const L=sortedMinutes().filter(x=>AD.sel.includes(x.key)); if(!L.length){ alert('인쇄할 협의록을 선택하세요.'); return; } printDocs(L.map(x=>minutesHTML(x.m))); },
   printAll(){ printDocs(sortedMinutes().map(x=>minutesHTML(x.m))); },
-  async delM(d){ const x=AD.minutes.find(x=>x.key===d.key); if(!x||!confirm(`${subjName(x.m)} 협의록을 삭제할까요? (되돌릴 수 없습니다)`)) return; try{ await api('remove',{key:d.key}); await loadAdminData(); AD.viewKey=''; rerender(); toast('삭제했습니다.'); }catch(e){ alert(e.message); } },
-  async saveExams(){ try{ await api('set',{key:examKey(), value:{exams:AD.exams, savedAt:new Date().toISOString()}}); toast('저장했습니다.'); }catch(e){ alert('저장 실패: '+e.message); } },
-  async genTable(){ await loadAdminData(); AD.gen=generateTableHTML(); rerender(); },
+  async delM(d){ const x=AD.minutes.find(x=>x.key===d.key); if(!x||!confirm(`${subjName(x.m)} 협의록을 삭제할까요? (되돌릴 수 없습니다)`)) return; try{ await busy('삭제하는 중',(async()=>{ await api('remove',{key:d.key}); await loadAdminData(); })()); AD.viewKey=''; rerender(); toast('삭제했습니다.'); }catch(e){ alert(e.message); } },
+  async saveExams(){ try{ await busy('저장하는 중',api('set',{key:examKey(), value:{exams:AD.exams, savedAt:new Date().toISOString()}})); toast('저장했습니다.'); }catch(e){ alert('저장 실패: '+e.message); } },
+  async genTable(){ await busy('부여표 만드는 중',loadAdminData()); AD.gen=generateTableHTML(); rerender(); },
   printGen(){ printDocs([AD.gen]); },
   async connect(){
     const u=String(CE.apiUrl||'').trim(); const st=$('#connState');
@@ -1096,7 +1114,7 @@ const ACT = {
     try{ await api('initpw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); await afterLogin(); toast('비밀번호를 만들었습니다. 잊지 않게 따로 적어 두세요.',5000); }catch(e){ progFail(); alert(e.message); } },
   resetServer(){ if(confirm('이 컴퓨터에 저장된 서버 주소를 지우고 설정 화면으로 갈까요?')){ localStorage.removeItem('kc_api'); localStorage.removeItem('kc_pw'); location.href=location.pathname+'?admin'; } },
   async changePw(){ const a=String(CE.newpw||''), b=String(CE.newpw2||''); if(a.length<4){ alert('새 비밀번호는 4자 이상으로 해 주세요.'); return; } if(a!==b){ alert('두 비밀번호가 다릅니다.'); return; }
-    try{ await api('changepw',{newpw:a}); ADMIN_PW=a; localStorage.setItem('kc_pw',a); CE.newpw=''; CE.newpw2=''; rerender(); toast('비밀번호를 바꿨습니다.'); }catch(e){ alert(e.message); } },
+    try{ await busy('비밀번호 바꾸는 중',api('changepw',{newpw:a})); ADMIN_PW=a; localStorage.setItem('kc_pw',a); CE.newpw=''; CE.newpw2=''; rerender(); toast('비밀번호를 바꿨습니다.'); }catch(e){ alert(e.message); } },
   logout(){ if(confirm('이 컴퓨터에서 평가부장 로그아웃할까요? 다음에 들어올 때 비밀번호를 다시 넣어야 합니다.')){ ADMIN_PW=''; localStorage.removeItem('kc_pw'); renderLock('login'); } },
   copy(d){ navigator.clipboard.writeText(d.v).then(()=>toast('복사했습니다.'),()=>prompt('복사하세요',d.v)); },
   copyTeachers(d){ const f=d.from, t=CE_G; const n=CE.subjects.filter(s=>String(s.teachers[f]||'').trim()).length; if(!n){ alert(`${f}학년에 입력된 참가교사가 없습니다.`); return; }
@@ -1114,7 +1132,7 @@ const ACT = {
     const c={year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
       subjects:CE.subjects.filter(s=>String(s.name).trim()).map(s=>({name:s.name.trim(),teachers:s.teachers,areas:s.areas})),
       roster:{1:[],2:[],3:[]}, reg:CE.reg};
-    try{ await api('set',{key:'config', value:c}); CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('설정을 저장했습니다. 교사 화면에 바로 반영됩니다.'); }
+    try{ await busy('설정 저장하는 중',api('set',{key:'config', value:c})); CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('설정을 저장했습니다. 교사 화면에 바로 반영됩니다.'); }
     catch(e){ alert('저장 실패: '+e.message); }
   }
 };
