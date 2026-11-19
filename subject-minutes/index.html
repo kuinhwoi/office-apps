@@ -763,13 +763,77 @@ function adminSettingsHTML(){
     <table class="set-tbl" style="margin-top:10px"><tr><th style="width:16%">교과</th><th style="width:28%">${CE_G}학년 참가교사 (기본값)</th><th>${CE_G}학년 수행평가 영역 (쉼표로)</th><th style="width:44px"></th></tr>
      ${CE.subjects.map((s,i)=>`<tr><td><input data-k="subjects.${i}.name" value="${esc(s.name)}"></td><td><input data-k="subjects.${i}.teachers.${CE_G}" value="${esc(s.teachers[CE_G]||'')}"></td><td><input data-k="subjects.${i}.areas.${CE_G}" value="${esc(s.areas[CE_G]||'')}"></td><td><button class="btn sm del" data-act="delSubj" data-i="${i}">×</button></td></tr>`).join('')}
     </table>
-    <button class="btn sm" data-act="addSubj" style="margin-top:6px">+ 교과 추가</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+     <button class="btn sm" data-act="addSubj">+ 교과 추가</button>
+     <span style="flex:1"></span>
+     <span class="hint">참가교사 가져오기:</span>
+     ${['1','2','3'].filter(g=>g!==CE_G).map(g=>`<button class="btn sm" data-act="copyTeachers" data-from="${g}">${g}학년 → ${CE_G}학년</button>`).join('')}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+     <button class="btn sm pri" data-act="importXls">📥 엑셀로 수행평가 영역 가져오기</button>
+     <button class="btn sm" data-act="xlsTemplate">엑셀 양식 내려받기</button>
+     <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none">
+    </div>
+    <p class="hint">엑셀 첫 줄에 <b>학년 · 교과 · 수행평가 영역</b>(필요하면 <b>참가교사</b>) 제목을 두고 한 줄에 한 교과(또는 한 영역)씩 적으면 됩니다. 영역 여러 개는 쉼표로 쓰거나 줄을 나눠도 되고, 병합된 칸도 읽습니다. 학년 칸이 없으면 지금 고른 ${CE_G}학년으로 넣습니다. 가져온 뒤 <b>설정 저장</b>을 눌러야 반영됩니다.</p>
    </div>
    <div class="card"><details><summary>학업성적관리규정 문구 고치기</summary>
     ${Object.keys(REG_DEFAULT).map(k=>`<label class="f wall" style="margin:8px 0"><span>${esc(REG_LABELS[k]||k)}</span><textarea data-k="reg.${k}" rows="${Math.min(7,String(CE.reg[k]||'').split('\n').length+1)}">${esc(CE.reg[k]||'')}</textarea></label>`).join('')}
     <button class="btn sm" data-act="resetReg">기본 문구로 되돌리기</button>
    </details></div>
    <div class="actions"><button class="btn pri" data-act="saveCfg">💾 설정 저장</button></div>`;
+}
+/* ----- 엑셀 가져오기 ----- */
+let XLSX_P=null;
+function loadXLSX(){ if(window.XLSX) return Promise.resolve(window.XLSX); if(XLSX_P) return XLSX_P;
+  XLSX_P=new Promise((ok,no)=>{ const sc=document.createElement('script'); sc.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'; sc.onload=()=>ok(window.XLSX); sc.onerror=()=>{ XLSX_P=null; no(new Error('엑셀 읽기 도구를 불러오지 못했습니다. 인터넷 연결을 확인하거나, 엑셀에서 “CSV로 저장”한 파일을 넣어 주세요.')); }; document.head.appendChild(sc); });
+  return XLSX_P; }
+function parseCSV(t){ const rows=[]; let row=[],cell='',q=false; t=t.replace(/^\uFEFF/,'');
+  for(let i=0;i<t.length;i++){ const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else if(c==='"') q=true; else if(c===','){row.push(cell);cell='';} else if(c==='\n'){row.push(cell);rows.push(row);row=[];cell='';} else if(c!=='\r') cell+=c; }
+  if(cell||row.length){row.push(cell);rows.push(row);} return rows; }
+async function readSheets(file){
+  if(/\.csv$/i.test(file.name)){ const buf=await file.arrayBuffer(); let t=new TextDecoder('utf-8').decode(buf); if(t.includes('\uFFFD')) t=new TextDecoder('euc-kr').decode(buf); return [{name:'',rows:parseCSV(t)}]; }
+  const X=await loadXLSX(); const wb=X.read(await file.arrayBuffer(),{type:'array'});
+  return wb.SheetNames.map(n=>({name:n, rows:X.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:false})}));
+}
+function areasFromSheets(sheets){
+  const out={}; // out[g][subject] = {areas:[], teachers:''}
+  let found=false;
+  sheets.forEach(sh=>{
+    const rows=sh.rows.map(r=>r.map(c=>String(c??'').trim()));
+    const hi=rows.slice(0,15).findIndex(r=>r.some(c=>/영역|평가명|수행/.test(c)));
+    if(hi<0) return;
+    const H=rows[hi]; found=true;
+    const gi=H.findIndex(c=>/^학년$|학년\s*$/.test(c)&&!/영역|평가/.test(c));
+    const si=H.findIndex(c=>/교과|과목/.test(c)&&!/영역|평가명/.test(c));
+    const ti=H.findIndex(c=>/교사|담당/.test(c));
+    const ais=H.map((c,i)=>i).filter(i=>i!==gi&&i!==si&&i!==ti&&/영역|평가명|수행/.test(H[i]));
+    const mg=String(sh.name).match(/([123])\s*학년/); let g=mg?mg[1]:CE_G, s='';
+    rows.slice(hi+1).forEach(r=>{
+      if(gi>=0&&r[gi]){ const m=r[gi].match(/[123]/); if(m) g=m[0]; }
+      if(si>=0&&r[si]) s=r[si].replace(/\s*\(.*?\)\s*$/,'').trim();
+      if(!s) return;
+      const areas=ais.flatMap(i=>split(r[i]));
+      const o=((out[g]=out[g]||{})[s]=(out[g][s]||{areas:[],teachers:''}));
+      areas.forEach(a=>{ if(!o.areas.includes(a)) o.areas.push(a); });
+      if(ti>=0&&r[ti]) o.teachers=o.teachers?(o.teachers.includes(r[ti])?o.teachers:o.teachers+', '+r[ti]):r[ti];
+    });
+  });
+  return found?out:null;
+}
+async function importAreasFile(file){
+  try{
+    const data=areasFromSheets(await readSheets(file));
+    if(!data){ alert('엑셀에서 ‘수행평가 영역’(또는 ‘평가명’) 제목 칸을 찾지 못했습니다.\n‘엑셀 양식 내려받기’로 받은 양식에 맞춰 적어 주세요.'); return; }
+    const lines=[]; Object.keys(data).sort().forEach(g=>Object.keys(data[g]).forEach(n=>{ const o=data[g][n]; if(o.areas.length||o.teachers) lines.push(`${g}학년 ${n}: ${o.areas.join(', ')||'(영역 없음)'}${o.teachers?' / 교사: '+o.teachers:''}`); }));
+    if(!lines.length){ alert('가져올 내용이 없습니다.'); return; }
+    if(!confirm(`아래 내용으로 바꿉니다. (엑셀에 있는 교과만 바뀌고, 나머지 교과는 그대로입니다)\n\n${lines.slice(0,40).join('\n')}${lines.length>40?`\n… 외 ${lines.length-40}건`:''}`)) return;
+    let added=0;
+    Object.keys(data).forEach(g=>Object.keys(data[g]).forEach(n=>{ const o=data[g][n]; let sc=CE.subjects.find(x=>x.name===n); if(!sc){ sc={name:n,teachers:{1:'',2:'',3:''},areas:{1:'',2:'',3:''}}; CE.subjects.push(sc); added++; } if(o.areas.length) sc.areas[g]=o.areas.join(', '); if(o.teachers) sc.teachers[g]=o.teachers; }));
+    const gs=Object.keys(data); if(gs.length===1) CE_G=gs[0];
+    rerender(); toast(`가져왔습니다${added?` (새 교과 ${added}개 추가)`:''}. 확인 후 ‘설정 저장’을 눌러 주세요.`,5000);
+  }catch(e){ alert(e.message); }
 }
 function parseRoster(t){ return String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ const p=l.split(/[\s,\t]+/); return {sid:p[0]||'', name:p[1]||'', reason:p.slice(2).join(' ')||''}; }).filter(s=>s.sid); }
 
@@ -816,6 +880,13 @@ const ACT = {
     catch(e){ API_URL=old; if(st) st.textContent=''; alert('연결 실패: '+e.message); }
   },
   copy(d){ navigator.clipboard.writeText(d.v).then(()=>toast('복사했습니다.'),()=>prompt('복사하세요',d.v)); },
+  copyTeachers(d){ const f=d.from, t=CE_G; const n=CE.subjects.filter(s=>String(s.teachers[f]||'').trim()).length; if(!n){ alert(`${f}학년에 입력된 참가교사가 없습니다.`); return; }
+    const over=CE.subjects.some(s=>String(s.teachers[t]||'').trim()&&String(s.teachers[f]||'').trim());
+    let fillAll=true; if(over) fillAll=confirm(`${t}학년에 이미 적힌 참가교사가 있습니다.\n\n[확인] ${f}학년 내용으로 모두 덮어쓰기\n[취소] 비어 있는 칸만 채우기`);
+    let c=0; CE.subjects.forEach(s=>{ const v=String(s.teachers[f]||'').trim(); if(!v) return; if(fillAll||!String(s.teachers[t]||'').trim()){ s.teachers[t]=v; c++; } });
+    rerender(); toast(`${f}학년 참가교사 ${c}개 교과를 ${t}학년으로 가져왔습니다. ‘설정 저장’을 눌러 주세요.`,4000); },
+  importXls(){ $('#xlsFile').click(); },
+  async xlsTemplate(){ try{ const X=await loadXLSX(); const rows=[['학년','교과','수행평가 영역','참가교사']]; ['1','2','3'].forEach(g=>CE.subjects.forEach(s=>rows.push([g+'학년',s.name,s.areas[g]||'',s.teachers[g]||'']))); const ws=X.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:8},{wch:12},{wch:50},{wch:24}]; const wb=X.utils.book_new(); X.utils.book_append_sheet(wb,ws,'수행평가 영역'); X.writeFile(wb,'수행평가영역_양식.xlsx'); }catch(e){ alert(e.message); } },
   addSubj(){ CE.subjects.push({name:'',teachers:{1:'',2:'',3:''},areas:{1:'',2:'',3:''}}); rerender(); },
   delSubj(d){ if(confirm(`'${CE.subjects[+d.i].name}' 교과를 목록에서 뺄까요?`)){ CE.subjects.splice(+d.i,1); rerender(); } },
   resetReg(){ if(confirm('규정 문구를 기본값으로 되돌릴까요?')){ CE.reg=Object.assign({},REG_DEFAULT); rerender(); } },
@@ -843,6 +914,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{ setTimeout(()=>onChange(e),0); });
 async function onChange(e){
   const el=e.target; const R=root(); if(!R||!el.dataset) return;
+  if(el.id==='xlsFile'){ const f=el.files&&el.files[0]; el.value=''; if(f) importAreasFile(f); return; }
   if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
   if(el.dataset.sid){ // 학번 → 이름·사유 자동
     const o=getPath(R,el.dataset.sid); const g=VIEW==='teacher'?M.grade:AD.grade; const s=findStu(g,o.sid);
