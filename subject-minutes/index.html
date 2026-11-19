@@ -166,7 +166,7 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 
 <script>
 'use strict';
-const APP_VERSION = '1.91';
+const APP_VERSION = '1.92';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -201,7 +201,7 @@ const DEFAULT_CFG = {
   reg: {}
 };
 const REASONS = ['질병결','미인정결','인정결','전입','기타'];
-const PERF_METHODS = [['origin','원적교 점수 인정'],['other','다른 수행평가(타영역) 점수의 ○%'],['avg','평균 비율 계산식'],['count','개수 × 배점'],['manual','직접 입력']];
+const PERF_METHODS = [['origin','원적교 점수 인정'],['lowestRank','석차 산출 재적수에 포함되는 학생 성적의 최하점의 -1점'],['lowestSum','모든 채점요소 최하점의 합의 -1점'],['other','다른 수행평가(타영역) 점수의 ○%'],['avg','평균 비율 계산식'],['count','개수 × 배점'],['manual','직접 입력']];
 const EXAM_METHODS = [['other','다른 정기시험 점수의 ○%'],['lowest','최하점의 -1점'],['manual','직접 입력']];
 const EXAMS = ['1차 시험','2차 시험'];
 
@@ -362,6 +362,17 @@ function perfCalc(r){
       text=`(${u} 개수×${fmt(p)||'○'})로 점수 인정`;
       formula=`${u} 개수(${fmt(c)}개) × ${fmt(p)} = ${fmt(raw)}점`+(!isNaN(mx)&&raw>mx?` → 만점(${fmt(mx)}점) 적용`:'');
       break; }
+    case 'lowestRank':
+      base=num(r.base); score=isNaN(base)?NaN:Math.max(0,base-1);
+      text='석차 산출 재적수에 포함되는 학생 성적의 최하점의 -1점';
+      formula=`최하점 ${fmt(base)}점 - 1 = ${fmt(score)}점`;
+      break;
+    case 'lowestSum': {
+      const el=split(String(r.elems||'').replace(/[+＋]/g,',')).map(num).filter(x=>!isNaN(x));
+      base=el.length?el.reduce((a,b)=>a+b,0):num(r.base); score=isNaN(base)?NaN:Math.max(0,base-1);
+      text='모든 채점요소 최하점의 합의 -1점';
+      formula=el.length?`채점요소별 최하점 (${el.map(fmt).join(' + ')}) = ${fmt(base)}점, ${fmt(base)} - 1 = ${fmt(score)}점`:`채점요소 최하점의 합 ${fmt(base)}점 - 1 = ${fmt(score)}점`;
+      break; }
     default:
       text=r.methodText||''; base=num(r.base); score=num(r.score);
   }
@@ -378,6 +389,8 @@ function perfAutoNote(r,m){
     case 'origin': return (tr?(nat?`수행평가 실시 이후 전입하여 다른 학생에 비해 수행평가를 준비할 시간이 부족하고, 단시간에 수행평가를 진행하거나 대체 과제를 제시하기 어렵다고 판단됨. `:`수행평가 실시 이후 전입하여 ‘${area}’ 수행평가를 준비하고 응시할 시간이 부족하고 대체 과제 제시가 어렵다고 판단됨. `):`${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시하지 못함. `)+`이에 원적교에서 응시한 유사 영역의 수행평가 ‘${r.originArea||'   '}’ 점수(${B}점)를 ${R}% 인정하여 부여함.`;
     case 'other': return (tr?`원적교에 ‘${area}’에 해당하는 수행평가 성적이 없으므로 ${plan}에 의거하여 `:`${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시할 수 없는 상황이므로 ${plan}의 수행평가 미응시자 처리 기준에 의거하여 `)+`당해 학기 내에 응시한 다른 수행평가 ‘${r.otherArea||'   '}’ 점수(${B}점)를 기준점수로 ${R}% 인정점을 부여함.`;
     case 'avg': return (tr?`원적교에서 ‘${area}’에 해당하는 수행평가를 실시하지 않아 점수가 없으므로, `:`${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시하지 못하였으므로, `)+`해당 학년·해당 교과의 평균을 고려하여 인정점 비율(${R}%)에 따라 인정점을 부여함. (응시(기준)고사: ${r.otherArea||'   '})`;
+    case 'lowestRank': return `${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시하지 않았으므로, 학업성적관리규정에 따라 석차 산출을 위한 재적수에 포함되는 학생 성적 중 최하점(${B}점)의 -1점을 부여함.`;
+    case 'lowestSum': return `${ro(reasonPhrase(r))} 인하여 ‘${area}’ 수행평가에 응시하지 않았으므로, ${plan}의 수행평가 미응시자 처리 기준에 따라 모든 채점요소 최하점의 합(${B}점)에서 -1점을 부여함.`;
     case 'count': return (tr?`전입으로 인해 전입 이전의 본교 학습활동을 수행하지 못하였으므로, 전입 이후 `:'')+`제출한 ${r.unit||'학습지'}의 개수에 ×${fmt(r.per)||'○'}를 계산하여 점수를 부여함.`;
     default: return '';
   }})();
@@ -433,6 +446,7 @@ function newPerf(m, stu){
 function applyPerfDefaults(r){
   if(r.reason==='전입'){ r.method='origin'; r.ratio='100'; }
   else if(r.reason==='질병결'){ r.method='other'; r.ratio='80'; }
+  else if(r.reason==='미인정결'){ r.method='lowestRank'; }
   else { r.method='other'; r.ratio= r.reason==='인정결'?'100':''; }
 }
 function newExam(m, stu, admin){
@@ -578,6 +592,8 @@ function perfCard(r,i,P,m){
   if(r.method==='other') mf = F('응시한 다른 수행평가명',k+'.otherArea',r.otherArea,'placeholder="예: 배드민턴 언더클리어"','w2')+F('그 점수(기준점수)',k+'.base',r.base,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal" placeholder="예: 80"');
   if(r.method==='avg') mf = F('결시고사(이 평가) 평균',k+'.avgAbs',r.avgAbs,'inputmode="decimal" placeholder="예: 76"')+F('응시(기준)고사명',k+'.otherArea',r.otherArea,'placeholder="예: 학습과정 포트폴리오"')+F('응시(기준)고사 평균',k+'.avgTake',r.avgTake,'inputmode="decimal" placeholder="예: 98.6"')+F('학생의 응시(기준)고사 점수',k+'.takeScore',r.takeScore,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal"');
   if(r.method==='count') mf = F('세는 것',k+'.unit',r.unit,'placeholder="학습지"')+F('개수',k+'.count',r.count,'inputmode="decimal"')+F('1개당 점수',k+'.per',r.per,'inputmode="decimal"')+F('만점',k+'.max',r.max,'inputmode="decimal"');
+  if(r.method==='lowestRank') mf = F('석차 산출 재적수 학생 성적의 최하점',k+'.base',r.base,'inputmode="decimal" placeholder="예: 20"');
+  if(r.method==='lowestSum') mf = F('채점요소별 최하점 (쉼표나 +로)',k+'.elems',r.elems,'placeholder="예: 5, 3, 2, 4"','w2')+F('또는 최하점의 합',k+'.base',r.base,'inputmode="decimal" placeholder="채점요소를 안 쓰면 합만"');
   if(r.method==='manual') mf = F('인정점 부과 방법(표에 들어갈 문구)',k+'.methodText',r.methodText,'','wall')+F('기준점수',k+'.base',r.base,'inputmode="decimal"')+F('인정점',k+'.score',r.score,'inputmode="decimal"');
   return `<details class="row-card rc-fold" data-open="${k}" ${r._open===false?'':'open'}>
    <summary class="rc-head"><span class="fold-ar">▾</span>수행평가 ${i+1}. <span style="font-weight:normal" data-sum="perf" data-path="${k}">${esc(sumPerf(r,m))}</span><span class="sp"></span><button class="btn sm" data-act="dupRow" data-p="${P}" data-i="${i}" title="같은 학생의 다른 평가 추가">같은 학생 평가 추가</button><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></summary>
@@ -588,7 +604,7 @@ function perfCard(r,i,P,m){
     ${r.reason==='기타'?F('사유 직접 입력',k+'.reasonText',r.reasonText):''}
     ${F('교과',k+'.subj',r.subj,`list="dlSubjects" data-rr placeholder="${esc(subjName(m)||'교과')}"`)}
     ${areaField(r,k,m)}
-    ${SEL('인정점 부과 방법',k+'.method',r.method,PERF_METHODS.filter(o=>o[0]!=='origin'||r.reason==='전입'||r.method==='origin'),'data-rr','w2')}
+    ${SEL('인정점 부과 방법',k+'.method',r.method,PERF_METHODS.filter(o=>(o[0]!=='origin'||r.reason==='전입'||r.method==='origin')&&(!/^lowest/.test(o[0])||r.reason==='미인정결'||r.method===o[0])),'data-rr','w2')}
     <label class="f wall"><span>수행평가의 성격 (선택 · 부여 사유 글 앞부분에 들어갑니다)</span><textarea data-k="${k}.nature" rows="2" placeholder="예: 교과 진도에 따라 학습활동 결과물을 누적해서 평가하는 것임">${esc(r.nature||'')}</textarea></label>
     ${mf}
    </div>
@@ -797,6 +813,8 @@ function validateMinutes(m){
       else if(r.method==='other'){ need(has(r.otherArea),k+'.otherArea',nm); need(isNum(r.base),k+'.base',nm); need(isNum(r.ratio),k+'.ratio',nm); }
       else if(r.method==='avg'){ ['avgAbs','avgTake','takeScore','ratio'].forEach(f=>need(isNum(r[f]),k+'.'+f,nm)); need(has(r.otherArea),k+'.otherArea',nm); }
       else if(r.method==='count'){ need(isNum(r.count),k+'.count',nm); need(isNum(r.per),k+'.per',nm); }
+      else if(r.method==='lowestRank'){ need(isNum(r.base),k+'.base',nm); }
+      else if(r.method==='lowestSum'){ const el=split(String(r.elems||'').replace(/[+＋]/g,',')).filter(x=>!isNaN(num(x))); if(!el.length) need(isNum(r.base),k+'.elems',nm); }
       else { need(has(r.methodText),k+'.methodText',nm); need(isNum(r.base),k+'.base',nm); need(isNum(r.score),k+'.score',nm); }
       const c=perfCalc(r); if(!miss.some(p=>p.startsWith(k+'.'))&&(isNaN(c.score)||!isFinite(c.score))) errs.push(`${L}: 인정점이 계산되지 않았습니다. 값을 확인하세요.`);
     });
