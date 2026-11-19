@@ -130,6 +130,14 @@ table.it td.l{width:30%}
 #busy .bar{height:10px;background:#e3e8f0;border-radius:6px;overflow:hidden}
 #busy .bar i{display:block;height:100%;width:0;background:var(--pri);transition:width .2s}
 #busy .bp{text-align:right;font-size:14px;color:var(--sub);margin-top:6px;font-weight:bold}
+input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#fff5f5!important;outline:2px solid #f3b3b3}
+.drop{border:2px dashed #9db7ee;border-radius:10px;padding:18px;text-align:center;color:var(--sub);background:#f8faff;transition:background .15s,border-color .15s}
+.drop.over{background:#e8eefb;border-color:var(--pri);color:var(--pri)}
+.att{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;margin:5px 0;background:#fff;font-size:14px}
+.att .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att .sz{color:var(--sub);font-size:12.5px;white-space:nowrap}
+.att .pb{width:110px;height:7px;background:#e3e8f0;border-radius:4px;overflow:hidden}.att .pb i{display:block;height:100%;background:var(--pri)}
+.att.err{border-color:#e9b8b8;background:#fff5f5}
 #printRoot{display:none}
 @page{size:A4;margin:12mm}
 @media print{
@@ -158,7 +166,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.8';
+const APP_VERSION = '1.9';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -293,6 +301,9 @@ function demoApi(action,d){ // 연습 모드: 이 브라우저에만 저장
   if(action==='get') return {ok:true, value: st[d.key]?st[d.key].value:null};
   if(action==='set'||action==='submit'){ st[d.key]={value:d.value, updated:new Date().toISOString()}; save(); return {ok:true}; }
   if(action==='remove'){ delete st[d.key]; save(); return {ok:true}; }
+  if(action==='upload'){ const id='demo_'+Math.random().toString(36).slice(2); try{ st['file|'+id]={value:{name:d.name,mime:d.mime,data:d.data}}; save(); }catch(e){ delete st['file|'+id]; return {ok:true,file:{id,name:d.name,size:Math.round(d.data.length*.75),mime:d.mime,url:''}}; } return {ok:true,file:{id,name:d.name,size:Math.round(d.data.length*.75),mime:d.mime,url:''}}; }
+  if(action==='getfile'){ const f=st['file|'+d.id]; return f?{ok:true,name:f.value.name,mime:f.value.mime,data:f.value.data}:{ok:false,error:'연습 모드: 파일이 없습니다'}; }
+  if(action==='delfile'){ delete st['file|'+d.id]; save(); return {ok:true}; }
   if(action==='list') return {ok:true, items:Object.keys(st).filter(k=>k.startsWith(d.prefix||'')).map(k=>({key:k, value:st[k].value, updated:st[k].updated}))};
   return {ok:false,error:'?'};
 }
@@ -411,7 +422,7 @@ function schedFor(m){ const sc=(CFG.schedule||{})[schedKey(m.year,m.grade,m.sem)
 function applySchedule(){ const o=schedFor(M); if(!o) return false; let ch=false; ['date','t1','t2','place'].forEach(k=>{ if(o[k]&&M[k]!==o[k]){ M[k]=o[k]; ch=true; } }); return ch; }
 function subjName(m){ return m.subject==='__custom' ? (m.subjectCustom||'').trim() : (m.subject||''); }
 function curSem(){ const mo=new Date().getMonth()+1; return (mo>=8||mo<=2)?'2':'1'; }
-function newMinutes(){ return {year:String(CFG.year), grade:'3', sem:curSem(), subject:'', subjectCustom:'', date:todayISO(), t1:'13:00', t2:'13:20', place:'', teachers:'', none:false, perf:[], exam:[], agendaManual:false, agenda:'', extraTitle:'', extra:''}; }
+function newMinutes(){ return {attachments:[], year:String(CFG.year), grade:'3', sem:curSem(), subject:'', subjectCustom:'', date:todayISO(), t1:'13:00', t2:'13:20', place:'', teachers:'', none:false, perf:[], exam:[], agendaManual:false, agenda:'', extraTitle:'', extra:''}; }
 const mkey = m=>`minutes|${m.year}|${m.grade}|${m.sem}|${subjName(m)}`;
 function newPerf(m, stu){
   const r={sid:'',name:'',reason:'질병결',reasonText:'',subj:'',area:'',nature:'',method:'origin',originArea:'',otherArea:'',ratio:'100',base:'',avgAbs:'',avgTake:'',takeScore:'',unit:'학습지',count:'',per:'',max:'100',methodText:'',score:'',note:'',noteEdited:false};
@@ -543,8 +554,10 @@ function printDocs(htmls){
 }
 
 /* ===================== 입력 칸 만들기 ===================== */
-const F=(label,k,val,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><input data-k="${k}" value="${esc(val??'')}" ${attrs}></label>`;
-const SEL=(label,k,val,opts,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><select data-k="${k}" ${attrs}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(val??'')?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
+let MISS=new Set();
+const mc=k=>MISS.has(k)?' class="miss"':'';
+const F=(label,k,val,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><input data-k="${k}"${mc(k)} value="${esc(val??'')}" ${attrs}></label>`;
+const SEL=(label,k,val,opts,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><select data-k="${k}"${mc(k)} ${attrs}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(val??'')?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
 
 function areasOf(subj,grade){ const sc=subjCfg(subj); return sc?split(sc.areas[grade]):[]; }
 function areaField(r,k,m){
@@ -552,7 +565,7 @@ function areaField(r,k,m){
   if(!A.length) return F('평가명(본교)',k+'.area',r.area,'placeholder="예: 국어 탐구 포트폴리오"','w2');
   const custom = r._areaCustom || (r.area && !A.includes(r.area));
   const opts=[['','— 평가 선택 —'],...A,['__custom','직접 입력']];
-  return `<label class="f w2"><span>평가명(본교) <small style="color:#1d8a4e">평가부 지정 영역</small></span><select data-areasel="${k}">${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o]; const sel=custom?v==='__custom':String(v)===String(r.area||''); return `<option value="${esc(v)}"${sel?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`
+  return `<label class="f w2"><span>평가명(본교) <small style="color:#1d8a4e">평가부 지정 영역</small></span><select data-areasel="${k}"${mc(k+'.area')}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o]; const sel=custom?v==='__custom':String(v)===String(r.area||''); return `<option value="${esc(v)}"${sel?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`
     + (custom?F('평가명 직접 입력',k+'.area',r.area,'placeholder="평가명을 입력하세요"','w2'):'');
 }
 function sumPerf(r,m){ const c=perfCalc(r); const sc=fmt(c.score); return [r.name&&`${r.name}${r.sid?` (${r.sid})`:''}`, reasonLabel(r), r.area, sc?`→ ${sc}점`:''].filter(Boolean).join(' · '); }
@@ -691,6 +704,11 @@ function renderTeacher(){
     <div class="grid" style="margin-top:8px">${F('기타 협의 제목 (선택)','extraTitle',m.extraTitle,'placeholder="예: 2학기 평가 결과 분석"','wall')}</div>
     <label class="f wall" style="margin-top:6px"><span>기타 협의 내용 (선택)</span><textarea data-k="extra" rows="3">${esc(m.extra)}</textarea></label>
    </div>
+   <div class="card"><h2>⑥ 증빙자료 첨부 <small>나이스 결시생 명단, 성적 일람표·집계표 등 (PDF·한글·엑셀·사진, 파일당 10MB까지)</small></h2>
+    <div class="drop" id="dropZone">📎 파일을 여기로 끌어다 놓거나 <button class="btn sm pri" data-act="pickEv">파일 선택</button><div class="hint" style="margin-top:4px">여러 개를 한꺼번에 올릴 수 있습니다. 올리는 즉시 서버에 저장됩니다.</div></div>
+    <input type="file" id="evFile" multiple style="display:none">
+    <div id="attList">${attListHTML()}</div>
+   </div>
    <div class="actions">
     <button class="btn" data-act="printM">🖨 인쇄</button>
     <button class="btn pri" data-act="submitM" ${API_URL?'':'disabled'}>📨 확인했습니다 · 평가부장에게 보내기</button>
@@ -719,17 +737,77 @@ async function checkExisting(){
   if(!API_URL||!subjName(M)) return;
   try{ const j=await api('get',{key:mkey(M)}); if(j.value){ EXIST=j.value; if(VIEW==='teacher') renderTeacher(); } }catch(e){}
 }
-function validateMinutes(m){
-  const errs=[], warns=[];
-  if(!subjName(m)) errs.push('교과를 선택하세요.');
-  if(!m.date) errs.push('날짜를 입력하세요.');
-  if(!String(m.teachers).trim()) warns.push('참가교사가 비어 있습니다.');
-  if(!m.none && !m.perf.length && !m.exam.length) errs.push('학생을 추가하거나 ‘대상 없음’에 체크하세요.');
-  if(!m.none){
-    m.perf.forEach((r,i)=>{ const c=perfCalc(r); if(!r.sid||!r.name) errs.push(`수행평가 ${i+1}: 학번·이름을 입력하세요.`); if(!r.area) warns.push(`수행평가 ${i+1}: 평가명이 비어 있습니다.`); if(isNaN(c.score)||!isFinite(c.score)) errs.push(`수행평가 ${i+1}(${r.name||''}): 인정점이 계산되지 않았습니다.`); if(r.sid&&rosterOf(m.grade).length&&!findStu(m.grade,r.sid)) warns.push(`수행평가 ${i+1}: 학번 ${r.sid}은(는) 평가부 명단에 없습니다. 학번을 확인하세요.`); else if(r.sid){ const s=findStu(m.grade,r.sid); if(s&&s.name!==r.name) warns.push(`학번 ${r.sid}: 명단의 이름(${s.name})과 다릅니다.`); } });
-    m.exam.forEach((e,i)=>{ if(!e.sid||!e.name) errs.push(`정기시험 ${i+1}: 학번·이름을 입력하세요.`); e.subjects.forEach(s=>{ if(isNaN(examCalc(e,s))) errs.push(`정기시험 ${i+1}(${e.name||''}): 점수를 입력하세요.`); }); if(e.sid&&rosterOf(m.grade).length&&!findStu(m.grade,e.sid)) warns.push(`정기시험 ${i+1}: 학번 ${e.sid}은(는) 평가부 명단에 없습니다.`); });
+/* ----- 증빙자료 첨부 ----- */
+let UPL=[]; // 올리는 중인 파일 {uid,name,size,pct,done,err}
+const fsize=n=>n<1024?n+'B':(n<1048576?(n/1024).toFixed(0)+'KB':(n/1048576).toFixed(1)+'MB');
+function attListHTML(){
+  const A=(M&&M.attachments)||[];
+  const done=A.map((a,i)=>`<div class="att">📄<span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="sz">${fsize(a.size||0)}</span><span style="color:#1d8a4e;font-size:13px">올림 ✓</span><button class="btn sm del" data-act="delEv" data-i="${i}" title="첨부 빼기">×</button></div>`).join('');
+  const up=UPL.filter(u=>!u.done).map(u=>`<div class="att ${u.err?'err':''}">⏳<span class="nm">${esc(u.name)}</span><span class="sz">${fsize(u.size)}</span>${u.err?`<span style="color:#c53030;font-size:13px">${esc(u.err)}</span><button class="btn sm del" data-act="dropUpl" data-u="${u.uid}">×</button>`:`<span class="pb"><i style="width:${u.pct}%"></i></span><span class="sz">${u.pct}%</span>`}</div>`).join('');
+  return (done||up)?done+up:'<p class="hint">첨부한 증빙자료가 없습니다.</p>';
+}
+function refreshAtt(){ const el=$('#attList'); if(el) el.innerHTML=attListHTML(); }
+function readB64(file){ return new Promise((ok,no)=>{ const fr=new FileReader(); fr.onload=()=>ok(String(fr.result).split(',')[1]||''); fr.onerror=()=>no(new Error('파일을 읽지 못했습니다.')); fr.readAsDataURL(file); }); }
+function xhrUpload(body,onp){ return new Promise((ok,no)=>{ const x=new XMLHttpRequest(); x.open('POST',API_URL); x.upload.onprogress=e=>{ if(e.lengthComputable) onp(Math.min(95,Math.round(e.loaded/e.total*95))); };
+  x.onload=()=>{ let j; try{ j=JSON.parse(x.responseText); }catch(e){ setSrv('fail','badjson'); return no(new Error('서버 응답을 읽지 못했습니다')); } setSrv('ok'); j.ok?ok(j):no(new Error(j.error||'서버 오류')); };
+  x.onerror=()=>{ setSrv('fail','network'); no(new Error('서버에 연결하지 못했습니다')); }; x.send(JSON.stringify(body)); }); }
+async function addEvFiles(files){
+  if(!API_URL){ alert('서버 주소가 없어 증빙자료를 올릴 수 없습니다. 평가부장에게 받은 링크로 접속해 주세요.'); return; }
+  if(!subjName(M)){ alert('먼저 ① 기본 정보에서 교과를 선택해 주세요.'); return; }
+  const key=mkey(M);
+  for(const f of files){
+    const u={uid:Math.random().toString(36).slice(2),name:f.name,size:f.size,pct:0,done:false,err:''}; UPL.push(u); refreshAtt();
+    if(f.size>10*1024*1024){ u.err='10MB가 넘습니다'; refreshAtt(); continue; }
+    if(!f.size){ u.err='빈 파일입니다'; refreshAtt(); continue; }
+    try{
+      const data=await readB64(f); u.pct=3; refreshAtt();
+      const body={action:'upload',key,name:f.name,mime:f.type||'application/octet-stream',data};
+      const j = API_URL==='demo' ? demoApi('upload',body) : await xhrUpload(body,p=>{ u.pct=p; refreshAtt(); });
+      M.attachments=M.attachments||[]; M.attachments.push(j.file); u.done=true; u.pct=100; saveDraft(); refreshAtt();
+    }catch(e){ u.err=e.message; refreshAtt(); }
   }
-  return {errs,warns};
+  UPL=UPL.filter(u=>!u.done);
+  updatePreview();
+}
+function validateMinutes(m){
+  const errs=[], warns=[], miss=[];
+  const need=(cond,path,msg)=>{ if(!cond){ miss.push(path); if(msg&&!errs.includes(msg)) errs.push(msg); } };
+  const has=v=>String(v??'').trim()!=='';
+  const isNum=v=>has(v)&&!isNaN(num(v));
+  need(has(subjName(m)), m.subject==='__custom'?'subjectCustom':'subject', '기본 정보: 교과를 선택하세요.');
+  need(has(m.date),'date','기본 정보: 날짜를 입력하세요.');
+  need(has(m.t1),'t1','기본 정보: 시작 시간을 입력하세요.');
+  need(has(m.t2),'t2','기본 정보: 끝 시간을 입력하세요.');
+  need(has(m.place),'place','기본 정보: 장소를 입력하세요.');
+  need(has(m.teachers),'teachers','기본 정보: 참가교사를 입력하세요.');
+  if(has(m.t1)&&has(m.t2)&&m.t2<=m.t1){ errs.push('기본 정보: 끝 시간이 시작 시간보다 늦어야 합니다.'); miss.push('t2'); }
+  if(!m.none && !m.perf.length && !m.exam.length) errs.push('학생을 추가하거나 ② ‘대상 없음’에 체크하세요.');
+  if(!m.none){
+    m.perf.forEach((r,i)=>{ const k=`perf.${i}`, L=`수행평가 ${i+1}${r.name?`(${r.name})`:''}`;
+      need(/^\d{3,6}$/.test(String(r.sid||'').trim()),k+'.sid',`${L}: 학번을 숫자로 입력하세요.`);
+      need(has(r.name),k+'.name',`${L}: 이름을 입력하세요.`);
+      if(r.reason==='기타') need(has(r.reasonText),k+'.reasonText',`${L}: 인정 사유를 입력하세요.`);
+      need(has(r.area),k+'.area',`${L}: 평가명을 선택하거나 입력하세요.`);
+      const nm=`${L}: 인정점 부과 방법에 필요한 값을 모두 입력하세요.`;
+      if(r.method==='origin'){ need(has(r.originArea),k+'.originArea',nm); need(isNum(r.base),k+'.base',nm); need(isNum(r.ratio),k+'.ratio',nm); }
+      else if(r.method==='other'){ need(has(r.otherArea),k+'.otherArea',nm); need(isNum(r.base),k+'.base',nm); need(isNum(r.ratio),k+'.ratio',nm); }
+      else if(r.method==='avg'){ ['avgAbs','avgTake','takeScore','ratio'].forEach(f=>need(isNum(r[f]),k+'.'+f,nm)); need(has(r.otherArea),k+'.otherArea',nm); }
+      else if(r.method==='count'){ need(isNum(r.count),k+'.count',nm); need(isNum(r.per),k+'.per',nm); }
+      else { need(has(r.methodText),k+'.methodText',nm); need(isNum(r.base),k+'.base',nm); need(isNum(r.score),k+'.score',nm); }
+      const c=perfCalc(r); if(!miss.some(p=>p.startsWith(k+'.'))&&(isNaN(c.score)||!isFinite(c.score))) errs.push(`${L}: 인정점이 계산되지 않았습니다. 값을 확인하세요.`);
+    });
+    m.exam.forEach((e,i)=>{ const k=`exam.${i}`, L=`정기시험 ${i+1}${e.name?`(${e.name})`:''}`;
+      need(/^\d{3,6}$/.test(String(e.sid||'').trim()),k+'.sid',`${L}: 학번을 숫자로 입력하세요.`);
+      need(has(e.name),k+'.name',`${L}: 이름을 입력하세요.`);
+      if(e.reason==='기타') need(has(e.reasonText),k+'.reasonText',`${L}: 인정 사유를 입력하세요.`);
+      const nm=`${L}: 인정점 부과 방법에 필요한 값을 모두 입력하세요.`;
+      if(e.method==='other') need(isNum(e.ratio),k+'.ratio',nm);
+      if(e.method==='manual') need(has(e.methodText),k+'.methodText',nm);
+      (e.subjects||[]).forEach((x,j)=>{ const q=`${k}.subjects.${j}`; need(isNum(x.base),q+'.base',`${L}: 교과별 기준점수를 입력하세요.`); if(e.method==='manual') need(isNum(x.score),q+'.score',`${L}: 교과별 인정점을 입력하세요.`); });
+    });
+  }
+  if(!m.none && !(m.attachments||[]).length) warns.push('증빙자료(나이스 결시생 명단, 성적 일람표 등)가 첨부되지 않았습니다.');
+  return {errs,warns,miss};
 }
 
 /* ===================== 평가부장 화면 ===================== */
@@ -766,12 +844,14 @@ function renderAdmin(){
   if(AD.tab==='exams'){ setDatalists(AD.grade,''); updateComputed(); updatePreview(); }
 }
 function subjectOrder(){ const names=CFG.subjects.map(s=>s.name); AD.minutes.forEach(x=>{ const s=subjName(x.m); if(!names.includes(s)) names.push(s); }); return names; }
+function attAdminHTML(x){ const A=x.m.attachments||[]; if(!A.length) return '<p class="hint">첨부된 증빙자료가 없습니다.</p>';
+  return `<div style="margin:0 0 10px"><b>📎 증빙자료 ${A.length}개</b> <button class="btn sm" data-act="dlAll" data-key="${esc(x.key)}">모두 내려받기</button>${A.map(a=>`<div class="att">📄<span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="sz">${fsize(a.size||0)}</span><button class="btn sm" data-act="dlFile" data-id="${esc(a.id)}" data-name="${esc(a.name)}">내려받기</button>${a.url?`<a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener">드라이브에서 열기</a>`:''}</div>`).join('')}</div>`; }
 function adminStatusHTML(){
   const byS={}; AD.minutes.forEach(x=>byS[subjName(x.m)]=x);
   const names=subjectOrder();
   const done=names.filter(n=>byS[n]).length;
   const rows=names.map(n=>{ const x=byS[n]; if(!x) return `<tr><td></td><td>${esc(n)}</td><td class="st-no">미제출</td><td></td><td></td><td></td><td></td></tr>`;
-    const m=x.m; const cnt=m.none?'대상 없음':`수행 ${m.perf.length}건 · 정기 ${m.exam.length}건`;
+    const m=x.m; const na=(m.attachments||[]).length; const cnt=(m.none?'대상 없음':`수행 ${m.perf.length}건 · 정기 ${m.exam.length}건`)+(na?` · 📎${na}`:(m.none?'':' · <span style="color:#c53030">증빙 없음</span>'));
     return `<tr><td><input type="checkbox" data-selkey="${esc(x.key)}" ${AD.sel.includes(x.key)?'checked':''} style="width:18px;height:18px"></td><td><b>${esc(n)}</b></td><td class="st-ok">제출</td><td>${esc(lt(m.submittedAt||x.updated))}</td><td>${esc(m.teachers)}</td><td>${cnt}</td><td><button class="btn sm" data-act="viewM" data-key="${esc(x.key)}">보기</button> <button class="btn sm" data-act="printOne" data-key="${esc(x.key)}">인쇄</button> <button class="btn sm del" data-act="delM" data-key="${esc(x.key)}">삭제</button></td></tr>`; }).join('');
   AD.sel=(AD.sel||[]).filter(k=>AD.minutes.some(x=>x.key===k)); const selN=AD.sel.length;
   const view = AD.viewKey ? AD.minutes.find(x=>x.key===AD.viewKey) : null;
@@ -779,7 +859,7 @@ function adminStatusHTML(){
    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" data-act="reload">↻ 새로고침</button><button class="btn ok" data-act="printSel" ${selN?'':'disabled'}>🖨 선택한 협의록 인쇄${selN?` (${selN}건)`:''}</button><button class="btn pri" data-act="printAll" ${AD.minutes.length?'':'disabled'}>🖨 제출된 협의록 모두 인쇄</button></div>
    <p class="hint">설정에 등록된 교과 중 협의를 하지 않는 교과는 무시하셔도 됩니다. 교과 목록은 ④ 설정에서 고칠 수 있습니다.</p>
    <table class="lst"><tr><th style="width:34px"><input type="checkbox" data-selall title="전체 선택" ${AD.minutes.length&&selN===AD.minutes.length?'checked':''} style="width:18px;height:18px"></th><th>교과</th><th>상태</th><th>제출 시각</th><th>참가교사</th><th>내용</th><th></th></tr>${rows}</table></div>
-   ${view?`<div class="card"><h2>${esc(subjName(view.m))} 협의록 미리보기 <button class="btn sm" data-act="printOne" data-key="${esc(view.key)}">인쇄</button> <button class="btn sm" data-act="closeView">닫기</button></h2><div style="overflow:auto"><div class="page">${minutesHTML(view.m)}</div></div></div>`:''}`;
+   ${view?`<div class="card"><h2>${esc(subjName(view.m))} 협의록 미리보기 <button class="btn sm" data-act="printOne" data-key="${esc(view.key)}">인쇄</button> <button class="btn sm" data-act="closeView">닫기</button></h2>${attAdminHTML(view)}<div style="overflow:auto"><div class="page">${minutesHTML(view.m)}</div></div></div>`:''}`;
 }
 function examPreviewHTML(){
   const m=ctxM(); const fromMin=collectExamRows(false);
@@ -1175,10 +1255,27 @@ const ACT = {
   addSub(d){ getPath(root(),d.path).subjects.push({subj:'',base:'',score:''}); rerender(); },
   delSub(d){ const e=getPath(root(),d.path); if(e.subjects.length>1){ e.subjects.splice(+d.j,1); rerender(); } },
   resetNote(d){ const o=getPath(root(),d.path); o.noteEdited=false; o.note=''; updateComputed(); updatePreview(); saveDraft(); },
+  pickEv(){ $('#evFile').click(); },
+  async delEv(d){ const a=(M.attachments||[])[+d.i]; if(!a||!confirm(`‘${a.name}’ 첨부를 뺄까요?`)) return; M.attachments.splice(+d.i,1); saveDraft(); refreshAtt(); try{ if(API_URL==='demo') demoApi('delfile',{id:a.id}); else await api('delfile',{id:a.id}); }catch(e){} },
+  dropUpl(d){ UPL=UPL.filter(u=>u.uid!==d.u); refreshAtt(); },
+  async dlFile(d){ try{ const j=await busy('파일 내려받는 중',api('getfile',{id:d.id})); const bin=atob(j.data); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      const url=URL.createObjectURL(new Blob([arr],{type:j.mime||'application/octet-stream'})); const a=document.createElement('a'); a.href=url; a.download=j.name||d.name||'첨부파일'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),3000); }
+    catch(e){ alert('내려받지 못했습니다: '+e.message); } },
+  async dlAll(d){ const x=AD.minutes.find(x=>x.key===d.key); for(const a of ((x&&x.m.attachments)||[])) await ACT.dlFile({id:a.id,name:a.name}); },
   printM(){ printDocs([minutesHTML(M)]); },
   async submitM(){
-    const {errs,warns}=validateMinutes(M);
-    if(errs.length){ alert('보내기 전에 확인해 주세요.\n\n- '+errs.join('\n- ')); return; }
+    if(UPL.some(u=>!u.done&&!u.err)){ alert('증빙자료를 올리는 중입니다. 다 올라간 뒤에 보내 주세요.'); return; }
+    if(UPL.some(u=>u.err)){ alert('올리지 못한 증빙자료가 있습니다. 목록에서 빨간 칸을 지우거나 다시 올려 주세요.'); return; }
+    const {errs,warns,miss}=validateMinutes(M);
+    if(errs.length){
+      MISS=new Set(miss);
+      miss.forEach(p=>{ const mm=p.match(/^(perf|exam)\.(\d+)/); if(mm){ const o=M[mm[1]][+mm[2]]; if(o) o._open=true; } });
+      rerender();
+      alert('평가부장에게 보내지 않았습니다. 아래 내용을 입력해 주세요.\n(빨간 칸이 비어 있거나 잘못된 곳입니다)\n\n- '+errs.join('\n- '));
+      const f=$('.miss'); if(f){ f.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>f.focus({preventScroll:true}),400); }
+      return;
+    }
+    MISS=new Set();
     if(warns.length && !confirm('확인할 점이 있습니다.\n\n- '+warns.join('\n- ')+'\n\n그래도 보낼까요?')) return;
     if(!confirm(`${subjName(M)} 협의록을 평가부장에게 보냅니다.${EXIST?'\n(이미 제출된 내용은 새 내용으로 바뀝니다.)':''}`)) return;
     const b=$('[data-act="submitM"]'); if(b){ b.disabled=true; b.textContent='보내는 중…'; }
@@ -1242,21 +1339,27 @@ let RENDERING=false;
 function rerender(){ if(RENDERING){ setTimeout(rerender,0); return; } RENDERING=true; try{ const y=window.scrollY; if(VIEW==='teacher') renderTeacher(); else renderAdmin(); window.scrollTo(0,y); saveDraft(); } finally { RENDERING=false; } }
 
 document.addEventListener('toggle',e=>{ const t=e.target; if(t&&t.dataset&&t.dataset.open){ const o=getPath(root(),t.dataset.open); if(o) o._open=t.open; if(VIEW==='teacher') saveDraft(); return; } if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
+['dragover','drop'].forEach(t=>document.addEventListener(t,e=>{ if(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files')) e.preventDefault(); }));
+document.addEventListener('dragover',e=>{ const z=e.target.closest&&e.target.closest('#dropZone'); $$('#dropZone').forEach(x=>x.classList.toggle('over',!!z)); });
+document.addEventListener('dragleave',e=>{ if(!e.relatedTarget||!(e.relatedTarget.closest&&e.relatedTarget.closest('#dropZone'))) $$('#dropZone').forEach(x=>x.classList.remove('over')); });
+document.addEventListener('drop',e=>{ $$('#dropZone').forEach(x=>x.classList.remove('over')); const z=e.target.closest&&e.target.closest('#dropZone'); if(z&&e.dataTransfer&&e.dataTransfer.files.length){ e.preventDefault(); addEvFiles([...e.dataTransfer.files]); } });
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-act]'); if(!b) return; e.preventDefault(); const f=ACT[b.dataset.act]; if(f) f(b.dataset,b); });
 document.addEventListener('input',e=>{
   const el=e.target, k=el.dataset.k; if(!k) return;
   const R=root(); if(!R) return;
   setPath(R,k, el.type==='checkbox'?el.checked:el.value);
+  if(MISS.has(k)){ MISS.delete(k); el.classList.remove('miss'); }
   if(el.dataset.note){ const o=getPath(R,el.dataset.note); o.noteEdited=true; }
   refresh();
 });
 document.addEventListener('change',e=>{ setTimeout(()=>onChange(e),0); });
 async function onChange(e){
   const el=e.target; const R=root(); if(!R||!el.dataset) return;
-  if(el.dataset.areasel){ const o=getPath(R,el.dataset.areasel); if(el.value==='__custom'){ o._areaCustom=true; o.area=''; } else { o._areaCustom=false; o.area=el.value; } rerender(); return; }
+  if(el.dataset.areasel){ MISS.delete(el.dataset.areasel+'.area'); const o=getPath(R,el.dataset.areasel); if(el.value==='__custom'){ o._areaCustom=true; o.area=''; } else { o._areaCustom=false; o.area=el.value; } rerender(); return; }
   if(el.dataset.selkey){ const k=el.dataset.selkey; AD.sel=(AD.sel||[]).filter(x=>x!==k); if(el.checked) AD.sel.push(k); rerender(); return; }
   if(el.dataset.selall!==undefined){ AD.sel=el.checked?AD.minutes.map(x=>x.key):[]; rerender(); return; }
   if(el.id==='xlsFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAreasFile(fs); return; }
+  if(el.id==='evFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) addEvFiles(fs); return; }
   if(el.id==='absFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAbsFiles(fs); return; }
   if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
   if(el.dataset.ces!==undefined){ CE_S=el.value; rerender(); return; }
