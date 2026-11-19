@@ -13,6 +13,12 @@ header.top h1{font-size:19px;margin:0}
 header.top .mode{font-size:13px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px}
 header.top .sp{flex:1}
 header.top a{color:#cfe0ff;font-size:13px}
+#apiState{font-size:13px;padding:3px 10px;border-radius:20px;white-space:nowrap}
+#apiState.ok{background:rgba(74,222,128,.18);color:#bbf7d0}
+#apiState.chk{background:rgba(255,255,255,.12);color:#dbe4f3}
+#apiState.fail{background:#c53030;color:#fff;cursor:pointer;font-weight:bold}
+#apiState.none{background:#b7791f;color:#fff;cursor:pointer}
+#apiState.demo{background:rgba(255,255,255,.15);color:#fde68a}
 main{padding:16px}
 .layout{display:grid;grid-template-columns:minmax(440px,1fr) auto;gap:18px;align-items:start}
 @media (max-width:1250px){.layout{grid-template-columns:1fr}}
@@ -146,7 +152,7 @@ table.it td.l{width:30%}
 
 <script>
 'use strict';
-const APP_VERSION = '1.5';
+const APP_VERSION = '1.6';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -215,9 +221,14 @@ async function api(action, data={}){
   if(!API_URL) throw new Error('서버 주소가 설정되지 않았습니다.');
   if(API_URL==='demo') return demoApi(action, data);
   const body = Object.assign({action}, VIEW==='admin'&&ADMIN_PW?{pw:ADMIN_PW}:{}, data);
-  const res = await fetch(API_URL, {method:'POST', body: JSON.stringify(body)});
-  const txt = await res.text();
-  let j; try{ j=JSON.parse(txt); }catch(e){ throw new Error('서버 응답을 읽지 못했습니다. (Apps Script 배포 설정을 확인하세요)'); }
+  let txt;
+  try{
+    const ac=new AbortController(); const to=setTimeout(()=>ac.abort(),25000);
+    const res = await fetch(API_URL, {method:'POST', body: JSON.stringify(body), signal:ac.signal}); clearTimeout(to);
+    txt = await res.text();
+  }catch(e){ setSrv('fail', e.name==='AbortError'?'timeout':'network'); throw new Error(e.name==='AbortError'?'서버 응답이 너무 늦습니다. 잠시 후 다시 해 주세요.':'서버에 연결하지 못했습니다. 인터넷 연결이나 서버 주소를 확인해 주세요.'); }
+  let j; try{ j=JSON.parse(txt); }catch(e){ setSrv('fail','badjson'); throw new Error('서버 응답을 읽지 못했습니다. (Apps Script 배포 설정을 확인하세요)'); }
+  setSrv('ok');
   if(!j.ok){ const er=new Error(j.error||'서버 오류'); er.code=j.code||'';
     if(j.code==='AUTH' && VIEW==='admin' && !LOCKED){ ADMIN_PW=''; localStorage.removeItem('kc_pw'); setTimeout(()=>renderLock('login','비밀번호가 바뀌었거나 맞지 않습니다. 다시 입력해 주세요.'),0); }
     throw er; }
@@ -1169,9 +1180,27 @@ async function onChange(e){
   if(el.dataset.chk!==undefined && VIEW==='teacher') checkExisting();
 }
 
+let SRV={st:'chk', why:''};
+function setSrv(st,why){ SRV={st,why:why||''}; updateApiState(); }
 function updateApiState(){
   const s=$('#apiState'); if(!s) return;
-  s.textContent = !API_URL ? '⚠ 서버 미연결' : (API_URL==='demo'?'● 연습 모드':'● 서버 연결됨');
+  let st=SRV.st; if(!API_URL) st='none'; else if(API_URL==='demo') st='demo';
+  const T={none:'⚠ 서버 주소 없음', demo:'● 연습 모드', chk:'… 연결 확인 중', ok:'● 서버 연결됨', fail:'⚠ 서버 연결 안 됨'};
+  s.className=st; s.textContent=T[st]; s.title=(st==='fail'||st==='none')?'눌러서 원인과 해결 방법 보기':'';
+}
+function srvHelp(){
+  let st=SRV.st; if(!API_URL) st='none'; else if(API_URL==='demo') return;
+  if(st==='ok'||st==='chk') return;
+  if(VIEW==='teacher'){
+    alert(st==='none'
+      ? '서버 주소가 없습니다.\n\n평가부장에게 받은 “교사용 링크”로 다시 접속해 주세요. 그래야 ‘보내기’가 됩니다. (작성·인쇄는 지금도 됩니다)'
+      : '서버(구글 시트)에 연결되지 않았습니다.\n\n1. 인터넷이 연결되어 있는지 확인하세요.\n2. 평가부장에게 받은 교사용 링크로 다시 접속해 보세요.\n3. 학교 업무망에서 구글 서비스가 막혀 있을 수 있습니다. 다른 인터넷(무선 등)에서 열어 보세요.\n4. 계속 안 되면 평가부장에게 알려 주세요.\n\n작성한 내용은 이 컴퓨터에 저장되어 있으니 사라지지 않습니다.');
+    return;
+  }
+  const why={network:'서버에 닿지 못했습니다 (주소가 틀렸거나, 인터넷·학교망 문제).', timeout:'서버 응답이 너무 늦습니다.', badjson:'서버가 앱이 읽을 수 없는 응답을 보냈습니다 (대개 배포 권한 문제).'}[SRV.why]||'';
+  alert(st==='none'
+    ? '서버 주소가 없습니다.\n\n④ 설정에서 Apps Script 웹 앱 주소(…/exec)를 넣고 ‘연결하기’를 누르세요.'
+    : `서버에 연결되지 않았습니다.\n${why}\n\n확인할 것:\n1. Apps Script 배포 → 배포 관리에서 ‘실행 사용자: 나’, ‘액세스 권한: 모든 사용자’인지\n2. ④ 설정의 주소가 https://script.google.com/macros/s/…/exec 형태인지 (/dev, /edit 아님)\n3. Code.gs를 고쳤다면 ‘새 버전’으로 다시 배포했는지\n4. 학교 업무망에서 script.google.com이 막혀 있지 않은지 (다른 인터넷에서 열어 보기)\n\n고친 뒤 이 화면을 새로고침(Ctrl+F5) 하세요.`);
 }
 async function init(){
   $('#verTag').textContent='v'+APP_VERSION; $('#verFoot').textContent=`버전 ${APP_VERSION} (${APP_DATE})`;
@@ -1179,7 +1208,8 @@ async function init(){
   const sw=$('#modeSwitch');
   if(VIEW==='teacher'){ sw.remove(); const ft=$('footer'); ft.innerHTML=ft.innerHTML.replace(/\s*·\s*$/,''); }
   else { sw.textContent='교사 화면 (새 탭)'; sw.href='?'+(API_URL?'api='+encodeURIComponent(API_URL):''); sw.target='_blank'; sw.rel='noopener'; }
-  updateApiState();
+  $('#apiState').addEventListener('click',srvHelp);
+  setSrv('chk');
   let cfgErr='';
   try{ await loadCfg(); }catch(e){ cfgErr=e.message; }
   if(VIEW==='teacher'){
