@@ -178,7 +178,7 @@ details.dz>summary{cursor:pointer;color:#9b2c2c;font-weight:bold}
 
 <script>
 'use strict';
-const APP_VERSION = '1.99';
+const APP_VERSION = '2.0';
 const APP_DATE = '2026.11.20';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -1518,7 +1518,7 @@ async function onChange(e){
   if(el.dataset.def){ const o=getPath(R,el.dataset.def); if(el.dataset.kind==='exam') applyExamDefaults(o); else applyPerfDefaults(o); }
   if(el.dataset.exam){ const o=getPath(R,el.dataset.exam); o.otherExam=o.exam==='1차 시험'?'2차 시험':'1차 시험'; }
   if(el.dataset.subj!==undefined && VIEW==='teacher'){ const sc=subjCfg(subjName(M)); if(sc&&sc.teachers[M.grade]) M.teachers=sc.teachers[M.grade]; }
-  if(VIEW==='admin' && (el.dataset.k==='year'||el.dataset.k==='grade'||el.dataset.k==='sem') && AD.tab!=='settings'){ AD.viewKey=''; AD.gen=''; await loadAdminData(); rerender(); return; }
+  if(VIEW==='admin' && (el.dataset.k==='year'||el.dataset.k==='grade'||el.dataset.k==='sem') && AD.tab!=='settings'){ AD.viewKey=''; AD.gen=''; AD.sel=[]; await busy(`${AD.year}학년도 ${AD.grade}학년 ${AD.sem}학기 자료 불러오는 중`,loadAdminData()); rerender(); return; }
   if(el.dataset.chk!==undefined && VIEW==='teacher'){ const ch=applySchedule(); if(ch||el.dataset.rr!==undefined) rerender(); checkExisting(); return; }
   if(el.dataset.rr!==undefined) rerender();
 }
