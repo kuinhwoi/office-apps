@@ -146,6 +146,10 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 .rad label:has(input:checked){border-color:var(--pri);background:var(--pri2);color:var(--pri);font-weight:bold}
 .rad input{width:16px;height:16px;margin:0;accent-color:var(--pri)}
 h2 .rad label{padding:4px 10px;font-size:13px}
+.btn.danger{background:#c53030;border-color:#c53030;color:#fff;font-weight:bold}
+.btn.danger:hover{background:#9b2c2c}
+details.dz{border:1px solid #e9b8b8;background:#fffafa;margin-top:28px}
+details.dz>summary{cursor:pointer;color:#9b2c2c;font-weight:bold}
 #printRoot{display:none}
 @page{size:A4;margin:12mm}
 @media print{
@@ -174,7 +178,7 @@ h2 .rad label{padding:4px 10px;font-size:13px}
 
 <script>
 'use strict';
-const APP_VERSION = '1.98';
+const APP_VERSION = '1.99';
 const APP_DATE = '2026.11.20';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -1048,6 +1052,20 @@ function scheduleCardHTML(){
    <div style="margin-top:8px"><button class="btn sm" data-act="clearSched">이 학년·학기 일정 비우기</button> <span class="hint">아래 <b>💾 설정 저장</b>을 눌러야 반영됩니다.</span></div>
   </div>`;
 }
+function resetCardHTML(){
+  return `<details class="card dz" id="resetBox" ${AD.resetOpen?'open':''}><summary>⚠ 모든 설정 지우기 (초기화)</summary>
+   <p class="hint" style="margin-top:10px">설정을 처음 상태로 되돌립니다. 되돌릴 수 없으니 꼭 필요할 때만 사용하세요.</p>
+   ${!AD.resetAsk?`<button class="btn danger" data-act="resetAsk">🗑 모든 설정 지우기</button>`:`
+   <div class="banner warn" style="background:#fff0f0;border-color:#f3b3b3">
+    <b>⚠ 정말 지울까요? 지운 설정은 되돌릴 수 없습니다.</b><br>
+    다음 설정이 모두 처음 상태로 돌아갑니다: 교과 목록 · 학년별 참가교사 · 수행평가 영역 · 협의록 날짜·시간 · 교사 화면 학기 · 결재란 · 학업성적관리규정 문구<br>
+    (서버 연결과 평가부장 비밀번호는 그대로 남습니다)
+   </div>
+   <label class="chk" style="margin:8px 0"><input type="checkbox" id="resetData"> 제출된 협의록 · 결시생 명단 · 정기시험 입력 · 증빙자료(드라이브 휴지통으로)까지 <b>모두</b> 지우기</label>
+   <label class="f" style="max-width:320px"><span>평가부장 비밀번호</span><input type="password" id="resetPw" autocomplete="current-password"></label>
+   <div style="display:flex;gap:8px;margin-top:10px"><button class="btn danger" data-act="resetDo">비밀번호 확인 후 모두 지우기</button><button class="btn" data-act="resetCancel">취소</button></div>`}
+  </details>`;
+}
 function adminSettingsHTML(){
   if(!CE) startSettings();
   const base=location.origin+location.pathname;
@@ -1102,7 +1120,8 @@ function adminSettingsHTML(){
     ${Object.keys(REG_DEFAULT).map(k=>`<label class="f wall" style="margin:8px 0"><span>${esc(REG_LABELS[k]||k)}</span><textarea data-k="reg.${k}" rows="${Math.min(7,String(CE.reg[k]||'').split('\n').length+1)}">${esc(CE.reg[k]||'')}</textarea></label>`).join('')}
     <button class="btn sm" data-act="resetReg">기본 문구로 되돌리기</button>
    </details></div>
-   <div class="actions"><button class="btn pri" data-act="saveCfg">💾 설정 저장</button></div>`;
+   <div class="actions"><button class="btn pri" data-act="saveCfg">💾 설정 저장</button></div>
+   ${resetCardHTML()}`;
 }
 /* ----- 엑셀 가져오기 ----- */
 let XLSX_P=null;
@@ -1423,6 +1442,25 @@ const ACT = {
   importXls(){ $('#xlsFile').click(); },
   async xlsTemplate(){ try{ const X=await loadXLSX(); const rows=[['학년','교과','수행평가 영역','참가교사']]; ['1','2','3'].forEach(g=>CE.subjects.forEach(s=>rows.push([g+'학년',s.name,s.areas[g]||'',s.teachers[g]||'']))); const ws=X.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:8},{wch:12},{wch:50},{wch:24}]; const wb=X.utils.book_new(); X.utils.book_append_sheet(wb,ws,'수행평가 영역'); X.writeFile(wb,'수행평가영역_양식.xlsx'); }catch(e){ alert(e.message); } },
   clearSched(){ const key=schedKey(CE.year,CE_G,CE_S); if(confirm(`${CE.year}학년도 ${CE_G}학년 ${CE_S}학기 일정을 비울까요?`)){ delete CE.schedule[key]; rerender(); } },
+  resetAsk(){ AD.resetOpen=true; AD.resetAsk=true; rerender(); setTimeout(()=>{ const i=$('#resetPw'); if(i){ i.focus(); i.scrollIntoView({block:'center'}); } },50); },
+  resetCancel(){ AD.resetAsk=false; rerender(); },
+  async resetDo(){
+    const pw=($('#resetPw')||{}).value||''; const alsoData=!!($('#resetData')||{}).checked;
+    if(!pw){ alert('평가부장 비밀번호를 입력하세요.'); return; }
+    if(API_URL!=='demo'){ try{ const a=await api('auth',{pw}); if(!a.valid){ alert('비밀번호가 맞지 않습니다.'); return; } }catch(e){ alert(e.message); return; } }
+    if(!confirm(alsoData?'설정과 제출된 모든 자료를 지웁니다. 정말 진행할까요?':'모든 설정을 지우고 처음 상태로 되돌립니다. 정말 진행할까요?')) return;
+    try{
+      await busy(alsoData?'모든 설정과 자료 지우는 중':'모든 설정 지우는 중',(async()=>{
+        const blank=normalizeCfg(null);
+        const c={curSem:'',year:new Date().getFullYear(),approvalLabels:blank.approvalLabels,approvalSigns:blank.approvalSigns,subjects:blank.subjects,roster:{1:[],2:[],3:[]},reg:Object.assign({},REG_DEFAULT),schedule:{}};
+        await api('set',{key:'config',value:c});
+        if(alsoData){ const L=(await api('list',{prefix:''})).items.map(x=>x.key).filter(k=>k!=='config'); for(const k of L) await api('remove',{key:k}); }
+        CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG));
+      })());
+      AD.resetAsk=false; AD.resetOpen=false; startSettings(); await loadAdminData(); rerender();
+      toast(alsoData?'모든 설정과 자료를 지웠습니다.':'모든 설정을 지웠습니다. 처음 상태입니다.',5000);
+    }catch(e){ alert('지우지 못했습니다: '+e.message); }
+  },
   addSubj(){ CE.subjects.push({name:'',teachers:{1:'',2:'',3:''},areas:{1:'',2:'',3:''}}); rerender(); },
   delSubj(d){ if(confirm(`'${CE.subjects[+d.i].name}' 교과를 목록에서 뺄까요?`)){ CE.subjects.splice(+d.i,1); rerender(); } },
   resetReg(){ if(confirm('규정 문구를 기본값으로 되돌릴까요?')){ CE.reg=Object.assign({},REG_DEFAULT); rerender(); } },
@@ -1446,7 +1484,7 @@ const ACT = {
 let RENDERING=false;
 function rerender(){ if(RENDERING){ setTimeout(rerender,0); return; } RENDERING=true; try{ const y=window.scrollY; if(VIEW==='teacher') renderTeacher(); else renderAdmin(); window.scrollTo(0,y); saveDraft(); } finally { RENDERING=false; } }
 
-document.addEventListener('toggle',e=>{ const t=e.target; if(t&&t.dataset&&t.dataset.open){ const o=getPath(root(),t.dataset.open); if(o) o._open=t.open; if(VIEW==='teacher') saveDraft(); return; } if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
+document.addEventListener('toggle',e=>{ const t=e.target; if(t&&t.id==='resetBox'){ AD.resetOpen=t.open; if(!t.open) AD.resetAsk=false; return; } if(t&&t.dataset&&t.dataset.open){ const o=getPath(root(),t.dataset.open); if(o) o._open=t.open; if(VIEW==='teacher') saveDraft(); return; } if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
 ['dragover','drop'].forEach(t=>document.addEventListener(t,e=>{ if(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files')) e.preventDefault(); }));
 document.addEventListener('dragover',e=>{ const z=e.target.closest&&e.target.closest('.drop'); $$('.drop').forEach(x=>x.classList.toggle('over',x===z)); });
 document.addEventListener('dragleave',e=>{ if(!e.relatedTarget||!(e.relatedTarget.closest&&e.relatedTarget.closest('.drop'))) $$('.drop').forEach(x=>x.classList.remove('over')); });
