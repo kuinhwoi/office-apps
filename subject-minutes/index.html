@@ -138,6 +138,9 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 .att .sz{color:var(--sub);font-size:12.5px;white-space:nowrap}
 .att .pb{width:110px;height:7px;background:#e3e8f0;border-radius:4px;overflow:hidden}.att .pb i{display:block;height:100%;background:var(--pri)}
 .att.err{border-color:#e9b8b8;background:#fff5f5}
+.tip{position:relative;display:inline-block;margin-left:8px;color:var(--pri);border-bottom:1px dotted var(--pri);cursor:help;font-size:12.5px;font-weight:normal;outline:none}
+.tip .tx{display:none;position:absolute;z-index:60;left:0;top:135%;width:290px;background:#1f2933;color:#fff;padding:9px 11px;border-radius:7px;font-size:13px;line-height:1.55;white-space:normal;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.tip:hover .tx,.tip:focus .tx{display:block}
 #printRoot{display:none}
 @page{size:A4;margin:12mm}
 @media print{
@@ -166,7 +169,7 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 
 <script>
 'use strict';
-const APP_VERSION = '1.94';
+const APP_VERSION = '1.95';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -201,7 +204,7 @@ const DEFAULT_CFG = {
   reg: {}
 };
 const REASONS = ['질병결','미인정결','인정결','전입','기타'];
-const PERF_METHODS = [['origin','원적교 점수 인정'],['lowestRank','석차 산출 재적수에 포함되는 학생 성적의 최하점의 -1점'],['lowestSum','모든 채점요소 최하점의 합의 -1점'],['other','다른 수행평가(타영역) 점수의 ○%'],['avg','평균 비율 계산식'],['count','개수 × 배점'],['manual','직접 입력']];
+const PERF_METHODS = [['origin','원적교 점수 인정'],['lowestRank','최하점의 -1점'],['lowestSum','기본점수의 -1점'],['other','다른 수행평가(타영역) 점수의 ○%'],['avg','평균 비율 계산식'],['count','개수 × 배점'],['manual','직접 입력']];
 const EXAM_METHODS = [['other','다른 정기시험 점수의 ○%'],['lowest','최하점의 -1점'],['manual','직접 입력']];
 const EXAMS = ['1차 시험','2차 시험'];
 
@@ -364,7 +367,7 @@ function perfCalc(r){
       break; }
     case 'lowestRank':
       base=num(r.base); score=isNaN(base)?NaN:Math.max(0,base-1);
-      text='석차 산출 재적수에 포함되는 학생 성적의 최하점의 -1점';
+      text='최하점의 -1점';
       formula=`최하점 ${fmt(base)}점 - 1 = ${fmt(score)}점`;
       break;
     case 'lowestSum': {
@@ -573,6 +576,9 @@ const mc=k=>MISS.has(k)?' class="miss"':'';
 const F=(label,k,val,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><input data-k="${k}"${mc(k)} value="${esc(val??'')}" ${attrs}></label>`;
 const SEL=(label,k,val,opts,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><select data-k="${k}"${mc(k)} ${attrs}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(val??'')?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
 
+const TIP_LOW='<b>최하점</b>: 석차 산출을 위한 재적수에 포함되는 학생(해당 평가 응시자 등) 성적 중 가장 낮은 점수입니다.<br>미인정 결석 학생에게는 이 최하점에서 1점을 뺀 점수를 줍니다.<br>예) 최하점 20점 → 인정점 19점 (0점 아래로는 내려가지 않음)';
+const TIP_BASE='<b>기본점수</b>: 해당 평가의 모든 채점요소 최하점의 합입니다.<br>예) 채점요소 4개의 최하점이 5, 3, 2, 4점이면 기본점수 14점 → 인정점 13점';
+const tip=(t,h)=>`<span class="tip" tabindex="0">${t}<span class="tx">${h}</span></span>`;
 function areasOf(subj,grade){ const sc=subjCfg(subj); return sc?split(sc.areas[grade]):[]; }
 function areaField(r,k,m){
   const A=areasOf(r.subj||subjName(m), m.grade);
@@ -592,8 +598,8 @@ function perfCard(r,i,P,m){
   if(r.method==='other') mf = F('응시한 다른 수행평가명',k+'.otherArea',r.otherArea,'placeholder="예: 배드민턴 언더클리어"','w2')+F('그 점수(기준점수)',k+'.base',r.base,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal" placeholder="예: 80"');
   if(r.method==='avg') mf = F('결시고사(이 평가) 평균',k+'.avgAbs',r.avgAbs,'inputmode="decimal" placeholder="예: 76"')+F('응시(기준)고사명',k+'.otherArea',r.otherArea,'placeholder="예: 학습과정 포트폴리오"')+F('응시(기준)고사 평균',k+'.avgTake',r.avgTake,'inputmode="decimal" placeholder="예: 98.6"')+F('학생의 응시(기준)고사 점수',k+'.takeScore',r.takeScore,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal"');
   if(r.method==='count') mf = F('세는 것',k+'.unit',r.unit,'placeholder="학습지"')+F('개수',k+'.count',r.count,'inputmode="decimal"')+F('1개당 점수',k+'.per',r.per,'inputmode="decimal"')+F('만점',k+'.max',r.max,'inputmode="decimal"');
-  if(r.method==='lowestRank') mf = F('석차 산출 재적수 학생 성적의 최하점',k+'.base',r.base,'inputmode="decimal" placeholder="예: 20"');
-  if(r.method==='lowestSum') mf = F('채점요소별 최하점 (쉼표나 +로)',k+'.elems',r.elems,'placeholder="예: 5, 3, 2, 4"','w2')+F('또는 최하점의 합',k+'.base',r.base,'inputmode="decimal" placeholder="채점요소를 안 쓰면 합만"');
+  if(r.method==='lowestRank') mf = F('최하점 (석차 산출 재적수 학생 성적 중)',k+'.base',r.base,'inputmode="decimal" placeholder="예: 20"');
+  if(r.method==='lowestSum') mf = F('채점요소별 최하점 (쉼표나 +로)',k+'.elems',r.elems,'placeholder="예: 5, 3, 2, 4"','w2')+F('또는 기본점수 (최하점의 합)',k+'.base',r.base,'inputmode="decimal" placeholder="채점요소를 안 쓰면 합만"');
   if(r.method==='manual') mf = F('인정점 부과 방법(표에 들어갈 문구)',k+'.methodText',r.methodText,'','wall')+F('기준점수',k+'.base',r.base,'inputmode="decimal"')+F('인정점',k+'.score',r.score,'inputmode="decimal"');
   return `<details class="row-card rc-fold" data-open="${k}" ${r._open===false?'':'open'}>
    <summary class="rc-head"><span class="fold-ar">▾</span>수행평가 ${i+1}. <span style="font-weight:normal" data-sum="perf" data-path="${k}">${esc(sumPerf(r,m))}</span><span class="sp"></span><button class="btn sm" data-act="dupRow" data-p="${P}" data-i="${i}" title="같은 학생의 다른 평가 추가">같은 학생 평가 추가</button><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></summary>
@@ -604,7 +610,7 @@ function perfCard(r,i,P,m){
     ${r.reason==='기타'?F('사유 직접 입력',k+'.reasonText',r.reasonText):''}
     ${F('교과',k+'.subj',r.subj,`list="dlSubjects" data-rr placeholder="${esc(subjName(m)||'교과')}"`)}
     ${areaField(r,k,m)}
-    ${SEL('인정점 부과 방법',k+'.method',r.method,PERF_METHODS.filter(o=>(o[0]!=='origin'||r.reason==='전입'||r.method==='origin')&&(!/^lowest/.test(o[0])||r.reason==='미인정결'||r.method===o[0])),'data-rr','w2')}
+    ${SEL('인정점 부과 방법'+(r.reason==='미인정결'?tip('최하점이란?',TIP_LOW)+tip('기본점수란?',TIP_BASE):''),k+'.method',r.method,PERF_METHODS.filter(o=>(o[0]!=='origin'||r.reason==='전입'||r.method==='origin')&&(!/^lowest/.test(o[0])||r.reason==='미인정결'||r.method===o[0])),'data-rr','w2')}
     <label class="f wall"><span>수행평가의 성격 (선택 · 부여 사유 글 앞부분에 들어갑니다)</span><textarea data-k="${k}.nature" rows="2" placeholder="예: 교과 진도에 따라 학습활동 결과물을 누적해서 평가하는 것임">${esc(r.nature||'')}</textarea></label>
     ${mf}
    </div>
@@ -704,23 +710,27 @@ function renderTeacher(){
     ${m.none?'<p class="hint">‘대상 없음’ 협의록이 만들어집니다. 그대로 보내 주세요.</p>':''}
    </div>
    ${m.none?'':`
-   <div class="card"><h2>③ 수행평가 인정점 <small>학생마다, 평가마다 한 칸씩</small></h2>
+   <div class="card"><h2>③ 나이스 수행평가 결시생 명단 가져오기 <small>선택 · 있으면 편리합니다</small></h2>
+    <div class="drop" id="neisZone">📥 나이스 <b>수행평가 결시생명단</b> 엑셀을 여기로 끌어다 놓거나 <button class="btn sm pri" data-act="pickNeis">파일 선택</button><div class="hint" style="margin-top:4px">학번·이름·인정 사유·평가명이 채워진 학생 칸이 ④에 자동으로 만들어집니다. 여러 파일을 한꺼번에 올려도 됩니다.</div></div>
+    <input type="file" id="neisFile" accept=".xlsx,.xls" multiple style="display:none">
+   </div>
+   <div class="card"><h2>④ 수행평가 인정점 <small>학생마다, 평가마다 한 칸씩</small></h2>
     ${absChipsHTML(m)}
     ${m.perf.length>1?foldBar('perf'):''}${m.perf.map((r,i)=>perfCard(r,i,'perf',m)).join('')}
     <button class="btn" data-act="addPerf">+ 학생 직접 추가</button>
    </div>
-   <div class="card"><h2>④ 정기시험 인정점 <small>교과에서 협의할 내용이 있을 때만 (예: 전입생 정기시험)</small></h2>
+   <div class="card"><h2>⑤ 정기시험 인정점 <small>교과에서 협의할 내용이 있을 때만 (예: 전입생 정기시험)</small></h2>
     ${m.exam.length>1?foldBar('exam'):''}${m.exam.map((e,i)=>examCard(e,i,'exam',m,false)).join('')}
     <button class="btn" data-act="addExam">+ 정기시험 인정점 추가</button>
    </div>`}
-   <div class="card"><h2>⑤ 논의 사항 · 기타</h2>
+   <div class="card"><h2>⑥ 논의 사항 · 기타</h2>
     <div class="hint">논의 사항(자동):</div><pre id="agAuto" style="margin:2px 0 8px;font-family:inherit;white-space:pre-wrap;background:#f6f7f9;padding:6px 10px;border-radius:6px"></pre>
     <label class="chk"><input type="checkbox" data-k="agendaManual" data-rr ${m.agendaManual?'checked':''}> 논의 사항 직접 쓰기</label>
     ${m.agendaManual?`<textarea data-k="agenda" rows="3" placeholder="한 줄에 하나씩">${esc(m.agenda)}</textarea>`:''}
     <div class="grid" style="margin-top:8px">${F('기타 협의 제목 (선택)','extraTitle',m.extraTitle,'placeholder="예: 2학기 평가 결과 분석"','wall')}</div>
     <label class="f wall" style="margin-top:6px"><span>기타 협의 내용 (선택)</span><textarea data-k="extra" rows="3">${esc(m.extra)}</textarea></label>
    </div>
-   <div class="card"><h2>⑥ 증빙자료 첨부 <small>나이스 결시생 명단, 성적 일람표·집계표 등 (PDF·한글·엑셀·사진, 파일당 10MB까지)</small></h2>
+   <div class="card"><h2>⑦ 증빙자료 첨부 <small>나이스 결시생 명단, 성적 일람표·집계표 등 (PDF·한글·엑셀·사진, 파일당 10MB까지)</small></h2>
     <div class="drop" id="dropZone">📎 파일을 여기로 끌어다 놓거나 <button class="btn sm pri" data-act="pickEv">파일 선택</button><div class="hint" style="margin-top:4px">여러 개를 한꺼번에 올릴 수 있습니다. 올리는 즉시 서버에 저장됩니다.</div></div>
     <input type="file" id="evFile" multiple style="display:none">
     <div id="attList">${attListHTML()}</div>
@@ -770,6 +780,30 @@ async function postUpload(body,size,onp){
   let v=3; const step=Math.max(0.4, 60/Math.max(1,size/200000)); // 큰 파일일수록 천천히
   const h=setInterval(()=>{ if(v<92){ v=Math.min(92,v+step*(v<60?1:0.4)); onp(Math.round(v)); } },150);
   try{ return await api('upload',body); } finally{ clearInterval(h); }
+}
+async function importNeisTeacher(files){
+  try{
+    let recs=[]; let examSkip=0; const bad=[];
+    for(const f of files){ const L=absFromSheets(await busy('나이스 명단 읽는 중',readSheets(f))); if(!L.length) bad.push(f.name); L.forEach(x=>{ if(x.type==='perf') recs.push(x); else examSkip++; }); }
+    if(!recs.length){ alert(examSkip?'정기시험 결시생명단은 평가부장이 처리합니다. 수행평가 결시생명단을 올려 주세요.':'나이스 ‘수행평가 결시생명단’ 엑셀 파일이 아닙니다.\n'+bad.join('\n')); return; }
+    const f0=recs[0];
+    if(f0.year&&f0.grade&&f0.sem&&(String(M.year)!==f0.year||String(M.grade)!==f0.grade||String(M.sem)!==f0.sem)){
+      if(confirm(`파일은 ${f0.year}학년도 ${f0.sem}학기 ${f0.grade}학년 명단입니다.\n협의록의 학년도·학년·학기를 파일에 맞출까요?`)){ M.year=f0.year; M.grade=f0.grade; M.sem=f0.sem; applySchedule(); }
+    }
+    const subs=[...new Set(recs.map(x=>x.subject).filter(Boolean))];
+    if(subs.length&&!subjName(M)){ const n=subs[0]; if(CFG.subjects.some(x=>x.name===n)) M.subject=n; else { M.subject='__custom'; M.subjectCustom=n; } const sc=subjCfg(n); if(sc&&sc.teachers[M.grade]&&!String(M.teachers).trim()) M.teachers=sc.teachers[M.grade]; applySchedule(); }
+    const other=recs.filter(x=>x.subject&&x.subject!==subjName(M));
+    if(other.length){ const names=[...new Set(other.map(x=>x.subject))].join(', ');
+      if(recs.length===other.length){ if(!confirm(`파일의 교과(${names})가 선택한 교과(${subjName(M)})와 다릅니다. 그래도 추가할까요?`)) return; }
+      else { recs=recs.filter(x=>!other.includes(x)); alert(`다른 교과(${names}) 명단은 빼고 ${subjName(M)} 명단만 추가합니다.\n다른 교과는 그 교과 협의록에서 올려 주세요.`); } }
+    let add=0, dup=0;
+    recs.forEach(x=>x.recs.forEach(r=>{
+      if(M.perf.some(p=>p.sid===r.sid&&p.area===(r.item||''))){ dup++; return; }
+      const p=newPerf(M,{sid:r.sid,name:r.name,reason:r.reason==='기타'?(r.reasonText||'기타'):r.reason}); if(r.item) p.area=r.item; if(x.subject&&x.subject!==subjName(M)) p.subj=x.subject; M.perf.push(p); add++; }));
+    M.none=false; rerender(); checkExisting();
+    toast(`④에 학생 ${add}명을 추가했습니다${dup?` (이미 있는 ${dup}명은 건너뜀)`:''}. 부과 방법과 점수를 채워 주세요.`,5000);
+    if(API_URL&&subjName(M)&&confirm('이 나이스 파일을 ⑦ 증빙자료로도 첨부할까요?')) addEvFiles(files);
+  }catch(e){ alert('가져오지 못했습니다: '+e.message); }
 }
 async function addEvFiles(files){
   if(!API_URL){ alert('서버 주소가 없어 증빙자료를 올릴 수 없습니다. 평가부장에게 받은 링크로 접속해 주세요.'); return; }
@@ -1284,6 +1318,7 @@ const ACT = {
   delSub(d){ const e=getPath(root(),d.path); if(e.subjects.length>1){ e.subjects.splice(+d.j,1); rerender(); } },
   resetNote(d){ const o=getPath(root(),d.path); o.noteEdited=false; o.note=''; updateComputed(); updatePreview(); saveDraft(); },
   pickEv(){ $('#evFile').click(); },
+  pickNeis(){ $('#neisFile').click(); },
   async delEv(d){ const a=(M.attachments||[])[+d.i]; if(!a||!confirm(`‘${a.name}’ 첨부를 뺄까요?`)) return; M.attachments.splice(+d.i,1); saveDraft(); refreshAtt(); try{ if(API_URL==='demo') demoApi('delfile',{id:a.id}); else await api('delfile',{id:a.id}); }catch(e){} },
   dropUpl(d){ UPL=UPL.filter(u=>u.uid!==d.u); refreshAtt(); },
   async dlFile(d){ try{ const j=await busy('파일 내려받는 중',api('getfile',{id:d.id})); const bin=atob(j.data); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
@@ -1402,9 +1437,9 @@ function rerender(){ if(RENDERING){ setTimeout(rerender,0); return; } RENDERING=
 
 document.addEventListener('toggle',e=>{ const t=e.target; if(t&&t.dataset&&t.dataset.open){ const o=getPath(root(),t.dataset.open); if(o) o._open=t.open; if(VIEW==='teacher') saveDraft(); return; } if(e.target&&e.target.id==='pasteBox') AD.pasteOpen=e.target.open; if(e.target&&e.target.id==='absPasteBox') AD.absPasteOpen=e.target.open; },true);
 ['dragover','drop'].forEach(t=>document.addEventListener(t,e=>{ if(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files')) e.preventDefault(); }));
-document.addEventListener('dragover',e=>{ const z=e.target.closest&&e.target.closest('#dropZone'); $$('#dropZone').forEach(x=>x.classList.toggle('over',!!z)); });
-document.addEventListener('dragleave',e=>{ if(!e.relatedTarget||!(e.relatedTarget.closest&&e.relatedTarget.closest('#dropZone'))) $$('#dropZone').forEach(x=>x.classList.remove('over')); });
-document.addEventListener('drop',e=>{ $$('#dropZone').forEach(x=>x.classList.remove('over')); const z=e.target.closest&&e.target.closest('#dropZone'); if(z&&e.dataTransfer&&e.dataTransfer.files.length){ e.preventDefault(); addEvFiles([...e.dataTransfer.files]); } });
+document.addEventListener('dragover',e=>{ const z=e.target.closest&&e.target.closest('.drop'); $$('.drop').forEach(x=>x.classList.toggle('over',x===z)); });
+document.addEventListener('dragleave',e=>{ if(!e.relatedTarget||!(e.relatedTarget.closest&&e.relatedTarget.closest('.drop'))) $$('.drop').forEach(x=>x.classList.remove('over')); });
+document.addEventListener('drop',e=>{ $$('.drop').forEach(x=>x.classList.remove('over')); const z=e.target.closest&&e.target.closest('.drop'); if(z&&e.dataTransfer&&e.dataTransfer.files.length){ e.preventDefault(); const fs=[...e.dataTransfer.files]; if(z.id==='neisZone') importNeisTeacher(fs); else if(z.id==='dropZone') addEvFiles(fs); } });
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-act]'); if(!b) return; e.preventDefault(); const f=ACT[b.dataset.act]; if(f) f(b.dataset,b); });
 document.addEventListener('input',e=>{
   const el=e.target, k=el.dataset.k; if(!k) return;
@@ -1421,6 +1456,7 @@ async function onChange(e){
   if(el.dataset.selkey){ const k=el.dataset.selkey; AD.sel=(AD.sel||[]).filter(x=>x!==k); if(el.checked) AD.sel.push(k); rerender(); return; }
   if(el.dataset.selall!==undefined){ AD.sel=el.checked?AD.minutes.map(x=>x.key):[]; rerender(); return; }
   if(el.id==='xlsFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAreasFile(fs); return; }
+  if(el.id==='neisFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importNeisTeacher(fs); return; }
   if(el.id==='evFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) addEvFiles(fs); return; }
   if(el.id==='absFile'){ const fs=[...(el.files||[])]; el.value=''; if(fs.length) importAbsFiles(fs); return; }
   if(el.dataset.ceg!==undefined){ CE_G=el.value; rerender(); return; }
