@@ -166,7 +166,7 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 
 <script>
 'use strict';
-const APP_VERSION = '1.93';
+const APP_VERSION = '1.94';
 const APP_DATE = '2026.11.19';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -293,7 +293,7 @@ function progDraw(){ const b=$('#progBar'), t=$('#progPct'); if(b) b.style.width
 function progTo(p,cap){ PROG.v=Math.max(PROG.v,p); PROG.cap=Math.max(PROG.v,cap??p); progDraw(); }
 function progEnd(){ clearInterval(PROG.h); PROG.v=100; progDraw(); }
 function progFail(){ clearInterval(PROG.h); const g=$('#prog'); if(g) g.remove(); $$('[data-act="doLogin"],[data-act="doCreatePw"]').forEach(b=>b.disabled=false); }
-async function afterLogin(){ progTo(40,65); try{ await loadCfg(); }catch(e){} progTo(65,95); await loadAdminData(); progEnd(); await new Promise(r=>setTimeout(r,250)); LOCKED=false; renderAdmin(); updateApiState(); }
+async function afterLogin(){ progTo(40,65); try{ await loadCfg(); CFG_OK=true; }catch(e){ CFG_OK=false; } CE=null; if(AD.tab==='settings') startSettings(); progTo(65,95); await loadAdminData(); progEnd(); await new Promise(r=>setTimeout(r,250)); LOCKED=false; renderAdmin(); updateApiState(); }
 function demoApi(action,d){ // 연습 모드: 이 브라우저에만 저장
   const st = JSON.parse(localStorage.getItem('kc_demo')||'{}');
   const save=()=>localStorage.setItem('kc_demo',JSON.stringify(st));
@@ -320,7 +320,7 @@ function normalizeCfg(c){
 }
 async function loadCfg(){
   if(!API_URL){ CFG=normalizeCfg(null); return false; }
-  try{ const j=await api('get',{key:'config'}); CFG=normalizeCfg(j.value); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); return true; }
+  try{ const j=await api('get',{key:'config'}); CFG=normalizeCfg(j.value); CFG_OK=true; localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); return true; }
   catch(e){ const c=localStorage.getItem('kc_cfg_cache'); CFG=normalizeCfg(c?JSON.parse(c):null); throw e; }
 }
 const rosterOf = g=>[]; // 학생 명단은 사용하지 않음 (교사가 직접 입력)
@@ -981,8 +981,10 @@ function generateTableHTML(){
 }
 
 /* ----- 설정 ----- */
+let CFG_OK=false;
+const cfgSig=c=>JSON.stringify({s:(c&&c.subjects)||[],a:(c&&c.approvalLabels)||'',b:(c&&c.approvalSigns)||'',y:(c&&c.year)||'',r:(c&&c.reg)||{},h:(c&&c.schedule)||{}});
 function startSettings(){
-  CE = clone(CFG);
+  CE = clone(CFG); CE._base = cfgSig(normalizeCfg(CFG));
   CE.rosterText = {}; ['1','2','3'].forEach(g=>CE.rosterText[g]=(CFG.roster[g]||[]).map(s=>[s.sid,s.name,s.reason,s.exam].filter(Boolean).join(' ')).join('\n'));
   CE.apiUrl = API_URL; CE.schedule=clone(CFG.schedule||{}); if(!CE_S) CE_S=curSem();
 }
@@ -1380,6 +1382,13 @@ const ACT = {
   resetReg(){ if(confirm('규정 문구를 기본값으로 되돌릴까요?')){ CE.reg=Object.assign({},REG_DEFAULT); rerender(); } },
   async saveCfg(){
     if(!API_URL){ alert('먼저 서버를 연결하세요.'); return; }
+    // 다른 컴퓨터에서 바뀌었거나, 이 화면이 서버 설정을 못 불러온 상태에서 덮어쓰지 않도록 확인
+    let srv=null; try{ srv=(await busy('서버 설정 확인 중',api('get',{key:'config'}))).value; }catch(e){ alert('서버 설정을 확인하지 못해 저장하지 않았습니다: '+e.message); return; }
+    if(srv && cfgSig(normalizeCfg(srv))!==CE._base){
+      const keep=confirm('서버에 저장된 설정이 지금 화면과 다릅니다.\n(다른 컴퓨터에서 바꿨거나, 이 화면을 연 뒤에 설정이 바뀌었습니다)\n\n[확인] 서버 설정을 불러와 화면을 새로 고침 (권장 — 지금 화면에서 고친 내용은 버려짐)\n[취소] 다음 단계로 (지금 화면 내용으로 덮어쓸지 한 번 더 묻습니다)');
+      if(keep){ CFG=normalizeCfg(srv); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('서버 설정을 불러왔습니다. 다시 고친 뒤 저장해 주세요.',5000); return; }
+      if(!confirm('정말 지금 화면 내용으로 서버 설정을 덮어쓸까요?\n서버에만 있던 교사·수행평가 영역 등은 사라집니다.')) return;
+    }
     const c={year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
       subjects:CE.subjects.filter(s=>String(s.name).trim()).map(s=>({name:s.name.trim(),teachers:s.teachers,areas:s.areas})),
       roster:{1:[],2:[],3:[]}, reg:CE.reg, schedule:cleanSched(CE.schedule)};
