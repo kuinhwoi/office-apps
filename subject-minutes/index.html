@@ -141,6 +141,11 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 .tip{position:relative;display:inline-block;margin-left:8px;color:var(--pri);border-bottom:1px dotted var(--pri);cursor:help;font-size:12.5px;font-weight:normal;outline:none}
 .tip .tx{display:none;position:absolute;z-index:60;left:0;top:135%;width:290px;background:#1f2933;color:#fff;padding:9px 11px;border-radius:7px;font-size:13px;line-height:1.55;white-space:normal;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 .tip:hover .tx,.tip:focus .tx{display:block}
+.rad{display:flex;gap:6px;flex-wrap:wrap}
+.rad label{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid #c4cad3;border-radius:20px;background:#fff;cursor:pointer;font-size:14px;color:var(--ink);white-space:nowrap}
+.rad label:has(input:checked){border-color:var(--pri);background:var(--pri2);color:var(--pri);font-weight:bold}
+.rad input{width:16px;height:16px;margin:0;accent-color:var(--pri)}
+h2 .rad label{padding:4px 10px;font-size:13px}
 #printRoot{display:none}
 @page{size:A4;margin:12mm}
 @media print{
@@ -169,8 +174,8 @@ input.miss,select.miss,textarea.miss{border-color:#c53030!important;background:#
 
 <script>
 'use strict';
-const APP_VERSION = '1.95';
-const APP_DATE = '2026.11.19';
+const APP_VERSION = '1.96';
+const APP_DATE = '2026.11.20';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
    ========================================================= */
@@ -571,7 +576,8 @@ function printDocs(htmls){
 }
 
 /* ===================== 입력 칸 만들기 ===================== */
-let MISS=new Set();
+let MISS=new Set(); let RADN=0;
+const RAD=(label,k,val,opts,attrs='',cls='')=>{ const n='r'+(++RADN)+'_'+k.replace(/\W/g,''); return `<div class="f ${cls}">${label?`<span>${label}</span>`:''}<div class="rad">${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o]; return `<label><input type="radio" name="${n}" data-k="${k}" value="${esc(v)}"${String(v)===String(val??'')?' checked':''} ${attrs}>${esc(t)}</label>`;}).join('')}</div></div>`; };
 const mc=k=>MISS.has(k)?' class="miss"':'';
 const F=(label,k,val,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><input data-k="${k}"${mc(k)} value="${esc(val??'')}" ${attrs}></label>`;
 const SEL=(label,k,val,opts,attrs='',cls='')=>`<label class="f ${cls}"><span>${label}</span><select data-k="${k}"${mc(k)} ${attrs}>${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(val??'')?' selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
@@ -599,7 +605,7 @@ function perfCard(r,i,P,m){
   if(r.method==='avg') mf = F('결시고사(이 평가) 평균',k+'.avgAbs',r.avgAbs,'inputmode="decimal" placeholder="예: 76"')+F('응시(기준)고사명',k+'.otherArea',r.otherArea,'placeholder="예: 학습과정 포트폴리오"')+F('응시(기준)고사 평균',k+'.avgTake',r.avgTake,'inputmode="decimal" placeholder="예: 98.6"')+F('학생의 응시(기준)고사 점수',k+'.takeScore',r.takeScore,'inputmode="decimal"')+F('인정 비율(%)',k+'.ratio',r.ratio,'inputmode="decimal"');
   if(r.method==='count') mf = F('세는 것',k+'.unit',r.unit,'placeholder="학습지"')+F('개수',k+'.count',r.count,'inputmode="decimal"')+F('1개당 점수',k+'.per',r.per,'inputmode="decimal"')+F('만점',k+'.max',r.max,'inputmode="decimal"');
   if(r.method==='lowestRank') mf = F('최하점 (석차 산출 재적수 학생 성적 중)',k+'.base',r.base,'inputmode="decimal" placeholder="예: 20"');
-  if(r.method==='lowestSum') mf = F('채점요소별 최하점 (쉼표나 +로)',k+'.elems',r.elems,'placeholder="예: 5, 3, 2, 4"','w2')+F('또는 기본점수 (최하점의 합)',k+'.base',r.base,'inputmode="decimal" placeholder="채점요소를 안 쓰면 합만"');
+  if(r.method==='lowestSum') mf = F('기본점수',k+'.base',r.base,`inputmode="decimal" data-basefor="${k}"`)+F('채점요소별 최하점 <small style="color:#5f6b7a">(선택 · 넣으면 기본점수가 자동으로 계산됩니다)</small>',k+'.elems',r.elems,'placeholder="예: 5, 3, 2, 4 (쉼표나 +로)"','w2');
   if(r.method==='manual') mf = F('인정점 부과 방법(표에 들어갈 문구)',k+'.methodText',r.methodText,'','wall')+F('기준점수',k+'.base',r.base,'inputmode="decimal"')+F('인정점',k+'.score',r.score,'inputmode="decimal"');
   return `<details class="row-card rc-fold" data-open="${k}" ${r._open===false?'':'open'}>
    <summary class="rc-head"><span class="fold-ar">▾</span>수행평가 ${i+1}. <span style="font-weight:normal" data-sum="perf" data-path="${k}">${esc(sumPerf(r,m))}</span><span class="sp"></span><button class="btn sm" data-act="dupRow" data-p="${P}" data-i="${i}" title="같은 학생의 다른 평가 추가">같은 학생 평가 추가</button><button class="btn sm del" data-act="delRow" data-p="${P}" data-i="${i}">삭제</button></summary>
@@ -665,6 +671,10 @@ const refresh = debounce(()=>{ updateComputed(); updatePreview(); saveDraft(); }
 function updateComputed(){
   const R=root(), m=ctxM();
   $$('[data-sum]').forEach(el=>{ const o=getPath(R,el.dataset.path); if(o) el.textContent=el.dataset.sum==='perf'?sumPerf(o,m):sumExam(o,m); });
+  $$('input[data-basefor]').forEach(inp=>{ const r=getPath(R,inp.dataset.basefor); if(!r||r.method!=='lowestSum') return;
+    const el=split(String(r.elems||'').replace(/[+＋]/g,',')).map(num).filter(x=>!isNaN(x));
+    if(el.length){ const sum=fmt(el.reduce((a,b)=>a+b,0)); r.base=sum; if(document.activeElement!==inp) inp.value=sum; inp.readOnly=true; inp.title='채점요소별 최하점의 합으로 자동 계산됨'; inp.style.background='#f0f4fa'; }
+    else { inp.readOnly=false; inp.title=''; inp.style.background=''; } });
   $$('[data-calc="perf"]').forEach(el=>{
     const r=getPath(R,el.dataset.path); if(!r) return; const c=perfCalc(r);
     const ok=!isNaN(c.score)&&isFinite(c.score);
@@ -693,8 +703,8 @@ function renderTeacher(){
    <div class="card"><h2>① 기본 정보</h2>
     <div class="grid">
      ${F('학년도',`year`,m.year,'inputmode="numeric" data-chk')}
-     ${SEL('학년','grade',m.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-chk')}
-     ${SEL('학기','sem',m.sem,[['1','1학기'],['2','2학기']],'data-chk')}
+     ${RAD('학년','grade',m.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-chk','w2')}
+     ${RAD('학기','sem',m.sem,[['1','1학기'],['2','2학기']],'data-chk')}
      ${SEL('교과','subject',m.subject,subjOpts,'data-rr data-chk data-subj')}
      ${m.subject==='__custom'?F('교과명 입력','subjectCustom',m.subjectCustom,'data-chk'):''}
      ${F('날짜','date',m.date,'type="date"')}${(()=>{ const o=schedFor(m); return o?`<div class="hint" style="grid-column:1/-1;margin:-2px 0 0;color:#1d8a4e">📅 평가부장이 정한 일정: ${o.date?fmtDate(o.date):''} ${o.t1||''}${o.t2?'~'+o.t2:''} ${esc(o.place||'')} (교과 상황에 맞게 바꿔도 됩니다)</div>`:''; })()}
@@ -848,7 +858,7 @@ function validateMinutes(m){
       else if(r.method==='avg'){ ['avgAbs','avgTake','takeScore','ratio'].forEach(f=>need(isNum(r[f]),k+'.'+f,nm)); need(has(r.otherArea),k+'.otherArea',nm); }
       else if(r.method==='count'){ need(isNum(r.count),k+'.count',nm); need(isNum(r.per),k+'.per',nm); }
       else if(r.method==='lowestRank'){ need(isNum(r.base),k+'.base',nm); }
-      else if(r.method==='lowestSum'){ const el=split(String(r.elems||'').replace(/[+＋]/g,',')).filter(x=>!isNaN(num(x))); if(!el.length) need(isNum(r.base),k+'.elems',nm); }
+      else if(r.method==='lowestSum'){ const el=split(String(r.elems||'').replace(/[+＋]/g,',')).filter(x=>!isNaN(num(x))); if(!el.length) need(isNum(r.base),k+'.base',nm); }
       else { need(has(r.methodText),k+'.methodText',nm); need(isNum(r.base),k+'.base',nm); need(isNum(r.score),k+'.score',nm); }
       const c=perfCalc(r); if(!miss.some(p=>p.startsWith(k+'.'))&&(isNaN(c.score)||!isFinite(c.score))) errs.push(`${L}: 인정점이 계산되지 않았습니다. 값을 확인하세요.`);
     });
@@ -870,8 +880,8 @@ function validateMinutes(m){
 function adminHead(){
   return `<div class="card" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
    ${F('학년도','year',AD.year,'inputmode="numeric" data-rr style="width:90px"')}
-   ${SEL('학년','grade',AD.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr')}
-   ${SEL('학기','sem',AD.sem,[['1','1학기'],['2','2학기']],'data-rr')}
+   ${RAD('학년','grade',AD.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr')}
+   ${RAD('학기','sem',AD.sem,[['1','1학기'],['2','2학기']],'data-rr')}
    <span class="hint">학년·학기를 바꾸면 그 학년 자료를 보여 줍니다.</span></div>`;
 }
 const tabsHTML = ()=>`<div class="tabs">${[['status','① 제출 현황'],['exams','② 결시생 명단'],['gen','③ 인정점 부여표'],['settings','④ 설정']].map(([k,t])=>`<div class="tab ${AD.tab===k?'on':''}" data-act="tab" data-t="${k}">${t}</div>`).join('')}</div>`;
@@ -1027,7 +1037,7 @@ function scheduleCardHTML(){
   const P=`schedule.${key}`;
   const rows=CE.subjects.filter(x=>String(x.name).trim()).map(x=>{ const b=(sc.bySubj[x.name]=sc.bySubj[x.name]||{date:'',t1:'',t2:'',place:''}); const q=`${P}.bySubj.${x.name}`;
     return `<tr><td>${esc(x.name)}</td><td><input type="date" data-k="${q}.date" value="${esc(b.date)}"></td><td><input type="time" data-k="${q}.t1" value="${esc(b.t1)}"></td><td><input type="time" data-k="${q}.t2" value="${esc(b.t2)}"></td><td><input data-k="${q}.place" value="${esc(b.place)}" placeholder="${esc(sc.place||'')}"></td></tr>`; }).join('');
-  return `<div class="card"><h2>📅 협의록 날짜·시간 미리 정하기 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-ceg')}${SEL('','_s',CE_S,[['1','1학기'],['2','2학기']],'data-ces')}</h2>
+  return `<div class="card"><h2>📅 협의록 날짜·시간 미리 정하기 <span style="flex:1"></span>${RAD('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-ceg')}${RAD('','_s',CE_S,[['1','1학기'],['2','2학기']],'data-ces')}</h2>
    <p class="hint">${esc(CE.year)}학년도 ${CE_G}학년 ${CE_S}학기 협의록에 미리 채워질 일정입니다. 교사가 교과를 고르면 자동으로 들어가고, 교사가 바꿀 수도 있습니다.</p>
    <div class="grid">
     ${F('공통 날짜',P+'.date',sc.date,'type="date"')}${F('시작 시간',P+'.t1',sc.t1,'type="time"')}${F('끝 시간',P+'.t2',sc.t2,'type="time"')}${F('장소 (선택)',P+'.place',sc.place,'placeholder="비우면 교과마다 입력"')}
@@ -1070,7 +1080,7 @@ function adminSettingsHTML(){
     ${F('결재란 칸 (쉼표로)','approvalLabels',CE.approvalLabels,'placeholder="부장, 교감"')}
     ${F('결재란 아래 칸 글자 (쉼표로)','approvalSigns',CE.approvalSigns,'placeholder=", 전결"')}
    </div></div>
-   <div class="card"><h2>학년별 교과 <span style="flex:1"></span>${SEL('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-ceg')}</h2>
+   <div class="card"><h2>학년별 교과 <span style="flex:1"></span>${RAD('','_g',CE_G,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-ceg')}</h2>
     <table class="set-tbl" style="margin-top:10px"><tr><th style="width:16%">교과</th><th style="width:28%">${CE_G}학년 참가교사 (기본값)</th><th>${CE_G}학년 수행평가 영역 (쉼표로)</th><th style="width:44px"></th></tr>
      ${CE.subjects.map((s,i)=>`<tr><td><input data-k="subjects.${i}.name" value="${esc(s.name)}"></td><td><input data-k="subjects.${i}.teachers.${CE_G}" value="${esc(s.teachers[CE_G]||'')}"></td><td><input data-k="subjects.${i}.areas.${CE_G}" value="${esc(s.areas[CE_G]||'')}"></td><td><button class="btn sm del" data-act="delSubj" data-i="${i}">×</button></td></tr>`).join('')}
     </table>
