@@ -174,7 +174,7 @@ h2 .rad label{padding:4px 10px;font-size:13px}
 
 <script>
 'use strict';
-const APP_VERSION = '1.97';
+const APP_VERSION = '1.98';
 const APP_DATE = '2026.11.20';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -1521,7 +1521,7 @@ async function init(){
     const d=localStorage.getItem('kc_draft');
     M = d ? Object.assign(newMinutes(), JSON.parse(d)) : newMinutes();
     if(!d) applySchedule();
-    else if(CFG.curSem && M.sem!==CFG.curSem && !subjName(M) && !M.perf.length && !M.exam.length){ M.sem=CFG.curSem; applySchedule(); }
+    else if(M.sem!==curSem()){ M.sem=curSem(); applySchedule(); } // 화면을 열 때마다 평가부장이 정한 학기(없으면 날짜 기준)로 맞춤
     renderTeacher();
     checkExisting();
   } else {
