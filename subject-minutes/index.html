@@ -174,7 +174,7 @@ h2 .rad label{padding:4px 10px;font-size:13px}
 
 <script>
 'use strict';
-const APP_VERSION = '1.96';
+const APP_VERSION = '1.97';
 const APP_DATE = '2026.11.20';
 /* =========================================================
    기본 문구 (학업성적관리규정) — 평가부장 설정에서 수정 가능
@@ -442,7 +442,7 @@ function schedFor(m){ const sc=(CFG.schedule||{})[schedKey(m.year,m.grade,m.sem)
   const o={date:pick('date'),t1:pick('t1'),t2:pick('t2'),place:pick('place')}; return (o.date||o.t1||o.t2||o.place)?o:null; }
 function applySchedule(){ const o=schedFor(M); if(!o) return false; let ch=false; ['date','t1','t2','place'].forEach(k=>{ if(o[k]&&M[k]!==o[k]){ M[k]=o[k]; ch=true; } }); return ch; }
 function subjName(m){ return m.subject==='__custom' ? (m.subjectCustom||'').trim() : (m.subject||''); }
-function curSem(){ const mo=new Date().getMonth()+1; return (mo>=8||mo<=2)?'2':'1'; }
+function curSem(){ if(CFG&&(CFG.curSem==='1'||CFG.curSem==='2')) return CFG.curSem; const mo=new Date().getMonth()+1; return (mo>=8||mo<=2)?'2':'1'; }
 function newMinutes(){ return {attachments:[], year:String(CFG.year), grade:'3', sem:curSem(), subject:'', subjectCustom:'', date:todayISO(), t1:'13:00', t2:'13:20', place:'', teachers:'', none:false, perf:[], exam:[], agendaManual:false, agenda:'', extraTitle:'', extra:''}; }
 const mkey = m=>`minutes|${m.year}|${m.grade}|${m.sem}|${subjName(m)}`;
 function newPerf(m, stu){
@@ -704,7 +704,7 @@ function renderTeacher(){
     <div class="grid">
      ${F('학년도',`year`,m.year,'inputmode="numeric" data-chk')}
      ${RAD('학년','grade',m.grade,[['1','1학년'],['2','2학년'],['3','3학년']],'data-rr data-chk','w2')}
-     ${RAD('학기','sem',m.sem,[['1','1학기'],['2','2학기']],'data-chk')}
+     ${SEL('학기','sem',m.sem,[['1','1학기'],['2','2학기']],'data-chk')}
      ${SEL('교과','subject',m.subject,subjOpts,'data-rr data-chk data-subj')}
      ${m.subject==='__custom'?F('교과명 입력','subjectCustom',m.subjectCustom,'data-chk'):''}
      ${F('날짜','date',m.date,'type="date"')}${(()=>{ const o=schedFor(m); return o?`<div class="hint" style="grid-column:1/-1;margin:-2px 0 0;color:#1d8a4e">📅 평가부장이 정한 일정: ${o.date?fmtDate(o.date):''} ${o.t1||''}${o.t2?'~'+o.t2:''} ${esc(o.place||'')} (교과 상황에 맞게 바꿔도 됩니다)</div>`:''; })()}
@@ -1026,7 +1026,7 @@ function generateTableHTML(){
 
 /* ----- 설정 ----- */
 let CFG_OK=false;
-const cfgSig=c=>JSON.stringify({s:(c&&c.subjects)||[],a:(c&&c.approvalLabels)||'',b:(c&&c.approvalSigns)||'',y:(c&&c.year)||'',r:(c&&c.reg)||{},h:(c&&c.schedule)||{}});
+const cfgSig=c=>JSON.stringify({cs:(c&&c.curSem)||'',s:(c&&c.subjects)||[],a:(c&&c.approvalLabels)||'',b:(c&&c.approvalSigns)||'',y:(c&&c.year)||'',r:(c&&c.reg)||{},h:(c&&c.schedule)||{}});
 function startSettings(){
   CE = clone(CFG); CE._base = cfgSig(normalizeCfg(CFG));
   CE.rosterText = {}; ['1','2','3'].forEach(g=>CE.rosterText[g]=(CFG.roster[g]||[]).map(s=>[s.sid,s.name,s.reason,s.exam].filter(Boolean).join(' ')).join('\n'));
@@ -1076,6 +1076,7 @@ function adminSettingsHTML(){
     <div style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-act="changePw">비밀번호 바꾸기</button><button class="btn del" data-act="logout">이 컴퓨터에서 로그아웃</button></div></div>`):''}
    ${scheduleCardHTML()}
    <div class="card"><h2>기본 정보</h2><div class="grid">
+    ${RAD('교사 화면에 먼저 뜨는 학기','curSem',CE.curSem||'',[['1','1학기'],['2','2학기'],['','날짜에 따라 자동']],'','w2')}
     ${F('학년도(기본값)','year',CE.year,'inputmode="numeric"')}
     ${F('결재란 칸 (쉼표로)','approvalLabels',CE.approvalLabels,'placeholder="부장, 교감"')}
     ${F('결재란 아래 칸 글자 (쉼표로)','approvalSigns',CE.approvalSigns,'placeholder=", 전결"')}
@@ -1434,7 +1435,7 @@ const ACT = {
       if(keep){ CFG=normalizeCfg(srv); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('서버 설정을 불러왔습니다. 다시 고친 뒤 저장해 주세요.',5000); return; }
       if(!confirm('정말 지금 화면 내용으로 서버 설정을 덮어쓸까요?\n서버에만 있던 교사·수행평가 영역 등은 사라집니다.')) return;
     }
-    const c={year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
+    const c={curSem:CE.curSem||'', year:+CE.year||new Date().getFullYear(), approvalLabels:CE.approvalLabels, approvalSigns:CE.approvalSigns,
       subjects:CE.subjects.filter(s=>String(s.name).trim()).map(s=>({name:s.name.trim(),teachers:s.teachers,areas:s.areas})),
       roster:{1:[],2:[],3:[]}, reg:CE.reg, schedule:cleanSched(CE.schedule)};
     try{ await busy('설정 저장하는 중',api('set',{key:'config', value:c})); CFG=normalizeCfg(c); localStorage.setItem('kc_cfg_cache',JSON.stringify(CFG)); startSettings(); rerender(); toast('설정을 저장했습니다. 교사 화면에 바로 반영됩니다.'); }
@@ -1520,6 +1521,7 @@ async function init(){
     const d=localStorage.getItem('kc_draft');
     M = d ? Object.assign(newMinutes(), JSON.parse(d)) : newMinutes();
     if(!d) applySchedule();
+    else if(CFG.curSem && M.sem!==CFG.curSem && !subjName(M) && !M.perf.length && !M.exam.length){ M.sem=CFG.curSem; applySchedule(); }
     renderTeacher();
     checkExisting();
   } else {
