@@ -138,13 +138,14 @@ h1,h2,h3{line-height:1.3}
 @media print{
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
   body{background:#fff}
-  .tabs,.no-print,#tab-files,#tab-plan,#tab-set,.foot{display:none !important}
+  /* 인쇄는 체크리스트 표만: 머리글·탭·요약·그림·안내는 숨김 */
+  .top,.tabs,.no-print,#tab-files,.foot{display:none !important}
   #tab-result{display:block !important}
-  .top{background:#fff;color:#000;border-bottom:2px solid #000}
-  .offline-note{background:none;border-left:3px solid #2e7d32;color:#000}
-  .panel{border:0;padding:0}
-  .gal{display:none}
-  .recog{display:none}
+  #sum-panel{display:none !important}
+  #res-body .panel > h2,#res-body .panel > .hint{display:none !important}
+  .wrap{max-width:none;padding:0}
+  .panel{border:0;padding:0;margin:0;box-shadow:none}
+  .gal,.recog{display:none}
 }
 
 </style>
@@ -205,9 +206,9 @@ h1,h2,h3{line-height:1.3}
   <div class="panel" id="res-empty"><p>아직 점검하지 않았습니다. [1. 파일 넣기]에서 파일을 넣고 [점검 시작]을 누르세요.</p></div>
   <div id="res-body" hidden>
     <div class="f8-alert f8-small" role="note"><div class="f8-key">F8</div><div class="f8-text"><b>한글 맞춤법 검사(F8)를 했나요?</b><span>이 앱의 오타 점검은 일부만 찾습니다. 한글에서 <kbd>F8</kbd>로 맞춤법 검사를 꼭 함께 하세요.</span></div></div>
-    <div class="panel">
+    <div class="panel" id="sum-panel">
       <div class="res-head"><div><h2>점검 결과 요약</h2><p class="res-meta" id="res-meta"></p></div>
-        <div class="no-print"><button type="button" class="btn" id="export">체크리스트 HTML 내려받기</button> <button type="button" class="btn" id="print">결과 인쇄</button></div></div>
+        <div class="no-print"><button type="button" class="btn" id="export">점검 결과 HTML 내려받기</button> <button type="button" class="btn" id="print">체크리스트 인쇄</button></div></div>
       <div id="res-summary"></div>
     </div>
     <div class="panel"><h2>점검 체크리스트</h2><p class="hint">행이나 체크박스를 누르면 확인 표시(음영)가 되고, 다시 누르면 해제됩니다. ‘판단 필요’는 자동으로 찾은 후보이므로 선생님이 판단해 주세요.</p><div id="res-checklist"></div></div>
@@ -2352,14 +2353,45 @@ const CHECKLIST_CSS = `
   .cl-table td.c-ct{border-top:1px solid #eef0f3}
   .cl-row.danger td:first-child{box-shadow:inset 4px 0 0 #c62828}
 }
+.cl-warn{display:flex;gap:10px;align-items:flex-start;background:#fdecea;border:2px solid #c62828;border-radius:10px;padding:10px 14px;margin:0 0 12px;color:#7f1d1d;font-size:14px}
+.cl-warn b{color:#b71c1c}
+.cl-warn-ic{flex:0 0 auto;font:800 18px Arial,sans-serif;color:#fff;background:#c62828;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+.cl-print-head{display:none}
+/* 인쇄: 체크리스트 표만 깔끔하게 */
+@page{size:A4 portrait;margin:12mm 10mm}
 @media print{
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
-  .cl-bar{position:static;box-shadow:none;border:0;padding:0}
-  .cl-actions,.cl-filter,.cl-nav{display:none !important}
-  .cl-table{font-size:11px}
-  .cl-row{break-inside:avoid}
-  .cl-row.checked td{background:#d9e3cf !important}
-  .cl-doc h2{break-after:avoid}
+  .cl-summary,.cl-bar,.cl-f8,.cl-empty,.cl-note{display:none !important}
+  .cl-print-head{display:block;margin:0 0 6px}
+  .cl-print-head h1{font-size:15pt;margin:0 0 2px;color:#000}
+  .cl-print-head p{font-size:9pt;margin:0;color:#333}
+  .cl-warn{padding:6px 10px;margin:6px 0 8px;font-size:9.5pt;border-width:1.5px}
+  .cl-warn-ic{width:18px;height:18px;font-size:12px}
+  .cl-doc{margin:0 0 8px}
+  .cl-doc h2{font-size:12pt;margin:8px 0 3px;padding-bottom:2px;border-bottom:1.5px solid #000;break-after:avoid}
+  .cl-doc h2 small{display:none}
+  .cl-doc h3{font-size:10.5pt;margin:5px 0 3px;break-after:avoid}
+  .cl-table,.cl-table tbody{display:table !important;width:100% !important}
+  .cl-table{table-layout:fixed;border-collapse:collapse;font-size:9pt}
+  .cl-table tbody{display:table-row-group !important}
+  .cl-table thead{display:table-header-group !important}
+  .cl-table tr{display:table-row !important;border:0 !important;margin:0 !important;break-inside:avoid}
+  .cl-table th,.cl-table td{display:table-cell !important;border:1px solid #777 !important;padding:3px 5px !important;vertical-align:top;color:#000;background:#fff}
+  .cl-table th{background:#e9ecef !important;font-size:9pt}
+  .cl-table td::before{display:none !important}
+  .cl-table .c-ck{width:9mm;text-align:center}
+  .cl-table .c-q{width:24mm;white-space:normal;font-weight:700}
+  .cl-table .c-ty{width:18mm}
+  .cl-table .c-fx{width:48mm}
+  .cl-table td.c-ty br{display:inline !important}
+  .cl-row .c-ck input{display:none}
+  .cl-row .c-ck::after{content:'\\2610';font-size:13pt;line-height:1}
+  .cl-row.checked .c-ck::after{content:'\\2611'}
+  .cl-row.checked td{background:#e8eee2 !important}
+  .cl-row.danger td:first-child{box-shadow:none}
+  .cl-tag{border:1px solid #999;background:#fff !important;color:#000 !important;font-weight:600}
+  .cl-cand{border-color:#999;background:#fff !important;color:#333}
+  .cl-credit{margin-top:6px;font-size:8pt}
 }
 `;
 
@@ -2374,6 +2406,9 @@ function ChecklistApp(root, data, key) {
   data.docs.forEach(function (d) { docCount[d.id] = 0; d.groups.forEach(function (g) { g.rows.forEach(function (r) { all.push(r); docCount[d.id]++; typeCount[r.type] = (typeCount[r.type] || 0) + 1; }); }); });
   var h = '';
   if (data.summaryHtml) h += '<div class="cl-summary">' + data.summaryHtml + '</div>';
+  // 인쇄할 때만 보이는 머리 + 화면·인쇄 모두에 보이는 파쇄 경고
+  h += '<div class="cl-print-head"><h1>' + esc(data.title || '출제 원안 점검 체크리스트') + '</h1>' + (data.printMeta ? '<p>' + esc(data.printMeta) + '</p>' : '') + '</div>';
+  h += '<div class="cl-warn" role="note"><span class="cl-warn-ic">!</span><span><b>보안 주의: 이 체크리스트에는 시험 원안의 문장이 들어 있습니다.</b> 원안 수정을 마치면 <b>인쇄물은 꼭 파쇄</b>하고, 내려받은 파일은 삭제하세요. 시험이 끝나기 전에는 다른 사람에게 보내지 마세요.</span></div>';
   h += '<div class="cl-bar"><div class="cl-top"><div class="cl-prog"><span class="cl-prog-txt">전체 진행률: 확인 <b class="cl-done">0</b> / ' + all.length + ' <span class="cl-pct"></span></span><div class="cl-track"><div class="cl-fill"></div></div></div>'
     + '<div class="cl-actions"><label class="cl-hide"><input type="checkbox" class="cl-hide-cb"> 확인한 항목 숨기기</label><button type="button" data-act="print">인쇄</button><button type="button" data-act="reset">체크 모두 해제</button></div></div>'
     + '<nav class="cl-nav">' + data.docs.map(function (d) { return '<a href="#cl-' + d.id + '">' + esc(d.name) + ' <span class="cl-dc" data-doc="' + d.id + '">0/' + docCount[d.id] + '</span></a>'; }).join('') + '</nav>'
@@ -2442,7 +2477,7 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v1.2';
+const APP_VERSION = 'v1.3';
 const APP_DATE = '2026.11.22';
 const APP_CREDIT = '제작: 과학교사 구인회';
 const LS_SET = 'exam-review-settings-v1';
@@ -2805,6 +2840,7 @@ function renderResults(res, ctx) {
   $('#res-body').hidden = false;
   $('#res-meta').textContent = (data.meta ? data.meta + ' · ' : '') + '시험지: ' + files.exam.name + ' · 점검 시각 ' + new Date().toLocaleString('ko-KR');
   $('#res-summary').innerHTML = sHtml + imagesHtml(ctx.imgs, ctx.seg);
+  data.printMeta = $('#res-meta').textContent + ' · 출제 원안 검토 도우미 ' + APP_VERSION;
   ChecklistApp($('#res-checklist'), data, key);
   $('#export').onclick = () => exportHtml(Object.assign({ summaryHtml: sHtml }, data), key, $('#res-meta').textContent);
 }
