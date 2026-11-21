@@ -15,7 +15,7 @@ office-apps/
 ├── CLAUDE.md             ← 이 파일
 ├── subject-minutes/      ← 학기말 교과협의록 (자세한 내용: subject-minutes/CLAUDE.md)
 ├── markdown-converter/   ← 마크다운 변환기
-└── exam-review/          ← 고사 원안 검토 도우미 (자세한 내용: exam-review/CLAUDE.md)
+└── exam-review/          ← 출제 원안 검토 도우미 (자세한 내용: exam-review/CLAUDE.md)
 ```
 - 앱마다 폴더 하나에 `index.html` 한 파일로 만듭니다(HTML·CSS·JS를 한 파일에).
 - 새 앱을 만들면 첫 페이지 `index.html` 목록에 링크와 한 줄 설명을 추가합니다.

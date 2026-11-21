@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'">
-<title>고사 원안 검토 도우미 (오프라인)</title>
+<title>출제 원안 검토 도우미 (오프라인)</title>
 <style id="base-css">
 *{box-sizing:border-box}
 body{margin:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:#1d2433;background:#f4f6f9;line-height:1.5;font-size:15px}
@@ -152,7 +152,7 @@ h1,h2,h3{line-height:1.3}
 <body>
 <header class="top">
   <div class="top-in">
-    <h1>고사 원안 검토 도우미 <span class="badge-off">오프라인 전용</span><span class="credit">제작: 과학교사 구인회</span><span class="ver app-ver"></span></h1>
+    <h1>출제 원안 검토 도우미 <span class="badge-off">오프라인 전용</span><span class="credit">제작: 과학교사 구인회</span><span class="ver app-ver"></span></h1>
     <p class="offline-note"><b>이 앱은 인터넷에 연결하지 않고 검토합니다.</b> 선택한 시험지·채점기준표·답안지·문항정보표는 이 컴퓨터의 브라우저 안에서만 열리며, 어떤 서버로도 전송되지 않습니다. (체크 상태만 이 브라우저에 저장됩니다)</p>
   </div>
 </header>
@@ -215,7 +215,7 @@ h1,h2,h3{line-height:1.3}
 </section>
 
 </main>
-<footer class="foot">고사 원안 검토 도우미 <span class="app-ver"></span> · 제작: 과학교사 구인회 · 인터넷 연결 없이 이 파일 하나로 동작합니다(외부 서버·외부 라이브러리 사용 없음).</footer>
+<footer class="foot">출제 원안 검토 도우미 <span class="app-ver"></span> · 제작: 과학교사 구인회 · 인터넷 연결 없이 이 파일 하나로 동작합니다(외부 서버·외부 라이브러리 사용 없음).</footer>
 <script>
 /* ===== zip.js : 외부 라이브러리 없이 ZIP(HWPX·XLSX) 읽기 =====
    브라우저 내장 DecompressionStream('deflate-raw')만 사용합니다. 네트워크 사용 없음. */
@@ -2442,7 +2442,7 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v1.1';
+const APP_VERSION = 'v1.2';
 const APP_DATE = '2026.11.22';
 const APP_CREDIT = '제작: 과학교사 구인회';
 const LS_SET = 'exam-review-settings-v1';
@@ -2792,7 +2792,7 @@ function buildChecklistData(res, ctx) {
   const order = ['시험지 원안', '문항정보표', '채점기준표', '답안지'];
   const okRows = res.OK.slice().sort((a, b) => order.indexOf(a.doc) - order.indexOf(b.doc));
   const P = plan;
-  const title = '고사 원안 점검 체크리스트' + (P.subject ? ' — ' + P.subject : '');
+  const title = '출제 원안 점검 체크리스트' + (P.subject ? ' — ' + P.subject : '');
   const meta = [P.year, P.semester ? P.semester + '학기' : '', P.round ? P.round + '차' : '', P.grade ? P.grade + '학년' : '', P.subject].filter(Boolean).join(' ');
   return { title, meta, docs, ok: okRows };
 }
@@ -2818,7 +2818,7 @@ function exportHtml(data, key, meta) {
     + '<title>' + h(data.title) + '</title><style>' + css + '</style></head><body class="export">'
     + '<header class="top"><div class="top-in"><h1>' + h(data.title) + '<span class="ver">' + APP_VERSION + '</span><span class="credit">' + APP_CREDIT + '</span></h1><p class="meta">' + h(meta) + '</p>'
     + '<p class="offline-note">이 체크리스트는 인터넷에 연결하지 않고 검토한 결과입니다. 체크 상태는 이 브라우저에만 저장됩니다.</p></div></header>'
-    + '<main class="wrap"><div id="app"></div><p class="cl-credit">고사 원안 검토 도우미 ' + APP_VERSION + ' (' + APP_DATE + ') · ' + APP_CREDIT + '</p></main>'
+    + '<main class="wrap"><div id="app"></div><p class="cl-credit">출제 원안 검토 도우미 ' + APP_VERSION + ' (' + APP_DATE + ') · ' + APP_CREDIT + '</p></main>'
     + '<script>var DATA=' + json + ';(' + ChecklistApp.toString() + ')(document.getElementById("app"),DATA,' + JSON.stringify(key) + ');<' + '/script></body></html>';
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
@@ -2887,7 +2887,7 @@ function init() {
   window.addEventListener('drop', e => e.preventDefault());
   $('#run').addEventListener('click', run);
   $$('.app-ver').forEach(el => { el.textContent = APP_VERSION + ' (' + APP_DATE + ')'; });
-  document.title = '고사 원안 검토 도우미 ' + APP_VERSION + ' (오프라인)';
+  document.title = '출제 원안 검토 도우미 ' + APP_VERSION + ' (오프라인)';
   initLightbox();
   try { localStorage.removeItem('exam-review-vocab-v1'); } catch (e) { } // 없앤 낱말장 기능의 저장 자료 정리
   $('#print').addEventListener('click', () => window.print());
