@@ -147,6 +147,25 @@ h1,h2,h3{line-height:1.3}
   .panel{border:0;padding:0;margin:0;box-shadow:none}
   .gal,.recog{display:none}
 }
+/* 안심하고 쓰기 */
+.net-band{display:flex;gap:10px;align-items:flex-start;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-size:14px;line-height:1.55}
+.net-band.net-on{background:#fff6d6;border:1px solid #e8c44a;color:#5a4300}
+.net-band.net-off{background:#e5f5e8;border:1px solid #7cc58a;color:#1d5a2a}
+.net-ic{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:#fff;margin-top:1px}
+.net-on .net-ic{background:#d39b00}
+.net-off .net-ic{background:#2e7d32}
+.safe-box{background:#f2f6fb;border:1px solid #c9d7ea;border-radius:10px;padding:12px 16px;margin:0 0 14px}
+.safe-web{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.safe-txt{flex:1 1 420px;font-size:14px;line-height:1.55}
+.safe-txt b{display:block;font-size:15px;color:#1f3b63}
+.safe-file{font-size:14px;color:#1d5a2a}
+.safe-file code,.safe-how code{background:#e6ebf2;border-radius:3px;padding:0 4px;font-size:12.5px}
+.safe-how{margin-top:10px;font-size:13.5px}
+.safe-how summary{cursor:pointer;color:#1f3b63;font-weight:600}
+.safe-how ol{margin:8px 0 2px;padding-left:22px;line-height:1.6}
+.safe-how li{margin:3px 0}
+.h2-sub{font-size:12.5px;font-weight:600;color:#2e7d32;background:#e5f5e8;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+@media print{.net-band,.safe-box{display:none !important}}
 
 </style>
 </head>
@@ -154,16 +173,17 @@ h1,h2,h3{line-height:1.3}
 <header class="top">
   <div class="top-in">
     <h1>출제 원안 자가검토 도우미 <span class="badge-off">오프라인 전용</span><span class="credit">제작: 과학교사 구인회</span><span class="ver app-ver"></span></h1>
-    <p class="offline-note"><b>이 앱은 인터넷에 연결하지 않고 검토합니다.</b> 선택한 시험지·채점기준표·답안지·문항정보표는 이 컴퓨터의 브라우저 안에서만 열리며, 어떤 서버로도 전송되지 않습니다. (체크 상태만 이 브라우저에 저장됩니다)</p>
+    <p class="offline-note"><b>이 앱은 인터넷에 연결하지 않고 검토합니다.</b> 파일을 어디에 올리는 것이 아니라, 선택한 시험지·채점기준표·답안지·문항정보표는 이 컴퓨터의 브라우저 안에서만 열리며, 어떤 서버로도 전송되지 않습니다. (체크 상태만 이 브라우저에 저장됩니다)</p>
   </div>
 </header>
 <nav class="tabs no-print">
   <div class="tabs-in">
-    <button class="tab-btn on" data-tab="files">1. 파일 넣기</button>
+    <button class="tab-btn on" data-tab="files">1. 파일 열기</button>
     <button class="tab-btn" data-tab="result">2. 점검 결과</button>
   </div>
 </nav>
 <main class="wrap">
+<div class="net-band no-print" id="net-band" role="status" hidden></div>
 
 <section class="tab on" id="tab-files">
   <div class="f8-alert" role="note">
@@ -173,9 +193,26 @@ h1,h2,h3{line-height:1.3}
       <span>시험지 원안·채점기준표·답안지를 한글에서 열고 <kbd>F8</kbd> 키를 누르면(또는 [도구 → 맞춤법]) 사전 기반 맞춤법 검사가 실행됩니다. 이 앱은 사전에 없는 오타(예: 사가, 항기, 뚜강)를 다 찾지 못하므로, 오타는 한글 맞춤법 검사로 먼저 걸러 주세요.</span>
     </div>
   </div>
+  <div class="safe-box" id="safe-box">
+    <div class="safe-web" id="safe-web">
+      <div class="safe-txt"><b>더 안심하고 쓰려면 내 컴퓨터에 저장해서 쓰세요.</b><span>이 화면은 파일 한 개로 되어 있습니다. 저장한 파일을 더블클릭하면 인터넷 주소 없이 내 컴퓨터에서 똑같이 열리고, 인터넷을 끊어도 그대로 점검됩니다.</span></div>
+      <button type="button" class="btn-primary" id="save-local">내 컴퓨터에 저장해서 쓰기</button>
+    </div>
+    <div class="safe-file" id="safe-file" hidden><b>✔ 지금 내 컴퓨터에 저장된 파일로 열려 있습니다.</b> <span>주소창이 <code>file:///</code>로 시작하면 인터넷의 웹 페이지가 아니라 이 컴퓨터 안의 파일입니다.</span></div>
+    <details class="safe-how">
+      <summary>시험 원안이 밖으로 나가지 않는지 직접 확인하는 방법</summary>
+      <ol>
+        <li><b>인터넷을 끊고 점검해 보기</b> — 노트북(와이파이)은 <b>비행기 모드</b>를 켜고, 데스크톱(랜선)은 <b>랜선을 뽑으세요</b>. 비행기 모드는 무선만 끄므로 랜선 연결은 끊기지 않습니다. 작업 표시줄 오른쪽 아래 네트워크 아이콘이 지구본(🌐) 모양으로 바뀌면 끊긴 것입니다. 이 상태에서도 점검이 끝까지 됩니다.</li>
+        <li><b>연결 기록 보기</b> — 이 화면에서 <kbd>F12</kbd> → [네트워크(Network)] 탭을 연 채로 파일을 열고 점검해 보세요. 바깥으로 나가는 연결이 하나도 생기지 않습니다.</li>
+        <li><b>보안 설정</b> — 이 파일 맨 앞에 외부 연결을 모두 막는 보안 설정(CSP: <code>connect-src 'none'</code>)이 들어 있어, 프로그램 안에서 보내려 해도 브라우저가 막습니다. 외부 라이브러리·글꼴·그림도 불러오지 않습니다.</li>
+        <li><b>저장되는 것</b> — 이 브라우저에는 체크리스트의 확인 표시만 저장됩니다. 시험 원안 내용은 창을 닫으면 사라집니다.</li>
+        <li><b>소스 공개</b> — 프로그램 전체가 이 파일 안에 그대로 들어 있어 누구나 열어 볼 수 있습니다(메모장으로 열거나 Ctrl+U).</li>
+      </ol>
+    </details>
+  </div>
   <div class="panel">
-    <h2>점검할 파일</h2>
-    <p class="hint">한글 파일은 <b>HWPX</b>, 문항정보표는 <b>PDF</b>(나이스에서 내려받은 것) 또는 <b>XLSX</b>로 넣어 주세요. HWP 파일은 한글에서 [파일 → 다른 이름으로 저장 → 파일 형식: HWPX]로 저장하면 됩니다. 시험지 원안만 있어도 점검할 수 있고, 나머지 파일은 넣은 만큼 배점을 대조합니다.</p>
+    <h2>점검할 파일 <small class="h2-sub">내 컴퓨터 안에서만 읽음</small></h2>
+    <p class="hint">한글 파일은 <b>HWPX</b>, 문항정보표는 <b>PDF</b>(나이스에서 내려받은 것) 또는 <b>XLSX</b>로 열어 주세요. HWP 파일은 한글에서 [파일 → 다른 이름으로 저장 → 파일 형식: HWPX]로 저장하면 됩니다. 시험지 원안만 있어도 점검할 수 있고, 나머지 파일은 연 만큼 배점을 대조합니다.</p>
     <p class="file-msg" id="file-msg" role="alert" hidden></p>
     <div class="slots">
       <div class="slot" data-slot="exam"><div class="slot-h"><b>시험지 원안</b><span class="req">필수</span><span class="fmt">HWPX</span></div><p class="slot-file"></p><label class="btn">파일 선택<input type="file" accept=".hwpx,.hwp" hidden></label><button type="button" class="btn-x" hidden>빼기</button></div>
@@ -203,7 +240,7 @@ h1,h2,h3{line-height:1.3}
 </section>
 
 <section class="tab" id="tab-result">
-  <div class="panel" id="res-empty"><p>아직 점검하지 않았습니다. [1. 파일 넣기]에서 파일을 넣고 [점검 시작]을 누르세요.</p></div>
+  <div class="panel" id="res-empty"><p>아직 점검하지 않았습니다. [1. 파일 열기]에서 파일을 열고 [점검 시작]을 누르세요.</p></div>
   <div id="res-body" hidden>
     <div class="cl-fixmsg" id="fix-msg" role="alert" hidden><span class="cl-fixmsg-ic">!</span><span><b>점검 결과를 확인하고 수정해 주세요.</b><small id="fix-msg-n"></small></span></div>
     <div class="f8-alert f8-small" role="note"><div class="f8-key">F8</div><div class="f8-text"><b>한글 맞춤법 검사(F8)를 했나요?</b><span>이 앱의 오타 점검은 일부만 찾습니다. 한글에서 <kbd>F8</kbd>로 맞춤법 검사를 꼭 함께 하세요.</span></div></div>
@@ -2492,7 +2529,9 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v1.5';
+const APP_VERSION = 'v1.6';
+// 처음 불러온 그대로의 화면(내 컴퓨터에 저장하기용) — 화면이 바뀌기 전에 담아 둠
+const PAGE_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
 const APP_DATE = '2026.11.22';
 const APP_CREDIT = '제작: 과학교사 구인회';
 const LS_SET = 'exam-review-settings-v1';
@@ -2537,10 +2576,10 @@ function assignFile(f, slot) {
   }
   const want = SLOTS[slot].ext;
   // 파일 형식 오류는 '점검할 파일' 설명 바로 아래에 표시
-  if (ext === 'hwp') return fileMsg('‘' + f.name + '’은 HWP 파일입니다. 한글에서 [파일 → 다른 이름으로 저장 → HWPX 문서]로 저장한 뒤 넣어 주세요.');
-  if (ext === 'xls') return fileMsg('‘' + f.name + '’은 XLS 파일입니다. 엑셀에서 XLSX로 저장한 뒤 넣어 주세요.');
+  if (ext === 'hwp') return fileMsg('‘' + f.name + '’은 HWP 파일입니다. 한글에서 [파일 → 다른 이름으로 저장 → HWPX 문서]로 저장한 뒤 열어 주세요.');
+  if (ext === 'xls') return fileMsg('‘' + f.name + '’은 XLS 파일입니다. 엑셀에서 XLSX로 저장한 뒤 열어 주세요.');
   const wants = [].concat(want);
-  if (!wants.includes(ext)) return fileMsg(SLOTS[slot].name + ' 칸에는 ' + wants.map(w => w.toUpperCase()).join('·') + ' 파일만 넣을 수 있습니다(‘' + f.name + '’).');
+  if (!wants.includes(ext)) return fileMsg(SLOTS[slot].name + ' 칸에는 ' + wants.map(w => w.toUpperCase()).join('·') + ' 파일만 열 수 있습니다(‘' + f.name + '’).');
   files[slot] = f;
   paintSlots();
   fileMsg('');
@@ -2837,7 +2876,7 @@ function buildChecklistData(res, ctx) {
   else docs.push({ id: 'exam', name: '시험지 원안', groups: [{ name: '문항별', rows: sortRows(ex.filter(f => f.group === 'sel' || f.group === 'seo')) }, { name: '공통', rows: sortRows(ex.filter(f => f.group !== 'sel' && f.group !== 'seo')) }] });
   [['info', '문항정보표', ctx.info], ['rubric', '채점기준표', ctx.rubric], ['sheet', '답안지', ctx.sheet]].forEach(([id, name, has]) => {
     const r = F.filter(f => f.doc === id);
-    docs.push({ id, name, note: has ? '' : '파일을 넣지 않아 점검하지 않았습니다.', groups: has ? [{ name: '문항별', rows: sortRows(r.filter(f => f.group !== 'common')) }, { name: '공통', rows: sortRows(r.filter(f => f.group === 'common')) }] : [] });
+    docs.push({ id, name, note: has ? '' : '파일을 열지 않아 점검하지 않았습니다.', groups: has ? [{ name: '문항별', rows: sortRows(r.filter(f => f.group !== 'common')) }, { name: '공통', rows: sortRows(r.filter(f => f.group === 'common')) }] : [] });
   });
   const order = ['시험지 원안', '문항정보표', '채점기준표', '답안지'];
   const okRows = res.OK.slice().sort((a, b) => order.indexOf(a.doc) - order.indexOf(b.doc));
@@ -2882,6 +2921,34 @@ function exportHtml(data, key, meta) {
   a.download = '원안점검_' + base + '.html';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ---------- 안심하고 쓰기: 내 컴퓨터에 저장 · 인터넷 상태 ---------- */
+function saveLocal() {
+  const blob = new Blob([PAGE_HTML], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '출제 원안 자가검토 도우미 ' + APP_VERSION + '.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function paintNet() {
+  const el = $('#net-band'); if (!el) return;
+  const on = navigator.onLine;
+  el.hidden = false;
+  el.className = 'net-band no-print ' + (on ? 'net-on' : 'net-off');
+  el.innerHTML = on
+    ? '<span class="net-ic">!</span><span><b>지금 인터넷에 연결되어 있습니다.</b> 이 앱은 인터넷으로 아무것도 보내지 않지만, 끊고 점검하면 더 안심할 수 있습니다. <b>와이파이는 비행기 모드, 랜선은 뽑기</b> (비행기 모드로는 랜선이 끊기지 않습니다)</span>'
+    : '<span class="net-ic">✔</span><span><b>지금 인터넷이 끊겨 있습니다.</b> 시험 원안이 밖으로 나갈 수 없는 상태에서 점검합니다.</span>';
+}
+function initSafe() {
+  const isFile = location.protocol === 'file:';
+  $('#safe-web').hidden = isFile;
+  $('#safe-file').hidden = !isFile;
+  $('#save-local').addEventListener('click', saveLocal);
+  paintNet();
+  window.addEventListener('online', paintNet);
+  window.addEventListener('offline', paintNet);
 }
 
 /* ---------- 그림 크게 보기(팝업) ---------- */
@@ -2944,6 +3011,7 @@ function init() {
   $$('.app-ver').forEach(el => { el.textContent = APP_VERSION + ' (' + APP_DATE + ')'; });
   document.title = '출제 원안 자가검토 도우미 ' + APP_VERSION + ' (오프라인)';
   initLightbox();
+  initSafe();
   try { localStorage.removeItem('exam-review-vocab-v1'); } catch (e) { } // 없앤 낱말장 기능의 저장 자료 정리
   $('#print').addEventListener('click', () => window.print());
   paintSlots();
