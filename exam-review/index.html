@@ -268,6 +268,8 @@ h1,h2,h3{line-height:1.3}
 <script>
 /* ===== zip.js : 외부 라이브러리 없이 ZIP(HWPX·XLSX) 읽기 =====
    브라우저 내장 DecompressionStream('deflate-raw')만 사용합니다. 네트워크 사용 없음. */
+const LOCKED_MSG = '파일을 읽을 수 없습니다. 학교 문서보안 프로그램(DRM)으로 잠긴 파일이거나 HWPX·XLSX가 아닌 파일로 보입니다. 보안을 해제(복호화)한 뒤 한글(엑셀)에서 다른 이름으로 저장해 다시 열어 주세요.';
+const ENC_MSG = '암호가 걸렸거나 보안 프로그램(DRM)으로 잠긴 문서로 보입니다. 한글에서 파일을 열고 [보안 → 문서 암호 변경/해제]로 암호를 푼 뒤(배포용 문서는 일반 문서로 바꾼 뒤) HWPX로 다시 저장해 주세요. 점검 후 다시 암호를 걸면 됩니다.';
 async function readZip(buf) {
   const dv = new DataView(buf);
   const u8 = new Uint8Array(buf);
@@ -275,7 +277,11 @@ async function readZip(buf) {
   for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) {
     if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
   }
-  if (eocd < 0) throw new Error('압축(ZIP) 형식이 아닙니다. HWPX·XLSX 파일인지 확인해 주세요.');
+  if (eocd < 0) {
+    const sig = Array.from(u8.subarray(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (sig === 'd0cf11e0') throw new Error('HWP(또는 XLS) 형식 파일입니다. 확장자만 바뀐 것 같습니다. 한글(엑셀)에서 [파일 → 다른 이름으로 저장]으로 HWPX(XLSX) 형식을 골라 다시 저장해 주세요.');
+    throw new Error(LOCKED_MSG);
+  }
   const cnt = dv.getUint16(eocd + 10, true);
   let off = dv.getUint32(eocd + 16, true);
   const entries = {};
@@ -308,22 +314,33 @@ async function readZip(buf) {
       if (e.method === 0) return data.slice();
       if (e.method === 8) {
         if (typeof DecompressionStream === 'undefined') throw new Error('이 브라우저는 압축 해제를 지원하지 않습니다. 최신 크롬·엣지·웨일을 사용해 주세요.');
-        const ds = new DecompressionStream('deflate-raw');
-        const out = await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer();
-        return new Uint8Array(out);
+        try {
+          const ds = new DecompressionStream('deflate-raw');
+          const out = await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer();
+          return new Uint8Array(out);
+        } catch (e) { throw new Error(ENC_MSG + ' (파일 안의 ' + real + ' 압축을 풀 수 없음)'); }
       }
       throw new Error('지원하지 않는 압축 방식입니다(' + e.method + ').');
     },
     async text(name) {
       const b = await this.bytes(name);
       return b ? td.decode(b) : null;
+    },
+    /* XML 읽기: 실패하면 파일 안의 어느 부분인지, 왜인지 알려 줌 */
+    async xml(name) {
+      const t = await this.text(name);
+      if (t == null) return null;
+      if (!t.replace(/^\uFEFF/, '').trimStart().startsWith('<')) throw new Error(ENC_MSG + ' (파일 안의 ' + name + ' 내용이 암호화되어 있음)');
+      try { return parseXML(t); }
+      catch (e) { throw new Error('파일 안의 ' + name + '을(를) 해석할 수 없습니다(' + e.message + '). 한글(엑셀)에서 [파일 → 다른 이름으로 저장]으로 새로 저장한 뒤 다시 열어 주세요. 한글이 아닌 프로그램으로 만든 파일이면 한글에서 열어 저장해 주세요.'); }
     }
   };
 }
 
 function parseXML(text) {
   const d = new DOMParser().parseFromString(text, 'application/xml');
-  if (d.getElementsByTagName('parsererror').length) throw new Error('XML을 해석할 수 없습니다.');
+  const pe = d.getElementsByTagName('parsererror')[0];
+  if (pe) throw new Error((pe.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'XML 형식 오류');
   return d;
 }
 function xkids(el, name) { const r = []; for (const c of el.children) if (!name || c.localName === name) r.push(c); return r; }
@@ -339,12 +356,14 @@ async function parseHwpx(file) {
     .sort((a, b) => (+a.match(/(\d+)\.xml$/i)[1]) - (+b.match(/(\d+)\.xml$/i)[1]));
   if (!secNames.length) throw new Error('HWPX 본문을 찾을 수 없습니다. 한글에서 [다른 이름으로 저장 → HWPX]로 저장한 파일인지 확인해 주세요.');
 
+  // 문서 암호가 걸린 HWPX는 META-INF/manifest.xml에 암호화 정보가 들어 있음
+  const mf = await z.text('META-INF/manifest.xml');
+  if (mf && /encryption-data|encrypt/i.test(mf)) throw new Error('문서 암호가 걸린 HWPX 파일입니다. 한글에서 파일을 열고 [보안 → 문서 암호 변경/해제]로 암호를 푼 뒤 HWPX로 다시 저장해 주세요. 점검 후 다시 암호를 걸면 됩니다.');
   const doc = { name: file.name, size: file.size, paras: [], tables: [], images: [], charPr: {}, manifest: {}, zip: z };
 
   // 글꼴·글자 모양
-  const hdr = await z.text('Contents/header.xml');
-  if (hdr) {
-    const h = parseXML(hdr);
+  const h = await z.xml('Contents/header.xml');
+  if (h) {
     const fonts = {};
     for (const ff of xall(h, 'fontface')) {
       if ((ff.getAttribute('lang') || '').toUpperCase() !== 'HANGUL') continue;
@@ -363,14 +382,14 @@ async function parseHwpx(file) {
     }
   }
   // 그림 목록
-  const hpf = await z.text('Contents/content.hpf');
-  if (hpf) {
-    const d = parseXML(hpf);
+  const d0 = await z.xml('Contents/content.hpf');
+  if (d0) {
+    const d = d0;
     for (const it of xall(d, 'item')) doc.manifest[it.getAttribute('id')] = { href: it.getAttribute('href') || '', mime: it.getAttribute('media-type') || '' };
   }
   doc.pageCount = 0;
   for (const sn of secNames) {
-    const d = parseXML(await z.text(sn));
+    const d = await z.xml(sn);
     hwpWalkContainer(d.documentElement, doc, {});
     doc.pageCount += hwpCountPages(d.documentElement);
   }
@@ -534,16 +553,15 @@ function xlsxRef(ref) { const m = /^([A-Z]+)(\d+)$/.exec(ref || ''); return m ? 
 
 async function parseXlsx(file) {
   const z = await readZip(await file.arrayBuffer());
-  const wbT = await z.text('xl/workbook.xml');
-  if (!wbT) throw new Error('엑셀(XLSX) 통합 문서를 찾을 수 없습니다. XLS 파일이면 XLSX로 저장해 주세요.');
-  const wb = parseXML(wbT);
+  const wb = await z.xml('xl/workbook.xml');
+  if (!wb) throw new Error('엑셀(XLSX) 통합 문서를 찾을 수 없습니다. XLS 파일이면 XLSX로 저장해 주세요.');
   const relMap = {};
-  const relT = await z.text('xl/_rels/workbook.xml.rels');
-  if (relT) for (const r of xall(parseXML(relT), 'Relationship')) relMap[r.getAttribute('Id')] = r.getAttribute('Target');
+  const relD = await z.xml('xl/_rels/workbook.xml.rels');
+  if (relD) for (const r of xall(relD, 'Relationship')) relMap[r.getAttribute('Id')] = r.getAttribute('Target');
   const ss = [];
-  const sstT = await z.text('xl/sharedStrings.xml');
-  if (sstT) {
-    for (const si of xall(parseXML(sstT), 'si')) {
+  const sstD = await z.xml('xl/sharedStrings.xml');
+  if (sstD) {
+    for (const si of xall(sstD, 'si')) {
       let s = '';
       for (const t of xall(si, 't')) { if (t.parentNode && t.parentNode.localName === 'rPh') continue; s += t.textContent; }
       ss.push(s);
@@ -557,9 +575,8 @@ async function parseXlsx(file) {
     for (const a of sh.attributes) if (a.localName === 'id' && a.name !== 'sheetId') rid = a.value;
     let target = relMap[rid] || ('worksheets/sheet' + idx + '.xml');
     let path = target.startsWith('/') ? target.slice(1) : 'xl/' + target.replace(/^\.\//, '');
-    const t = await z.text(path);
-    if (!t) continue;
-    const d = parseXML(t);
+    const d = await z.xml(path);
+    if (!d) continue;
     const rows = [];
     let maxC = 0;
     for (const row of xall(d, 'row')) {
@@ -2539,10 +2556,10 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v1.7';
+const APP_VERSION = 'v1.8';
 // 처음 불러온 그대로의 화면(내 컴퓨터에 저장하기용) — 화면이 바뀌기 전에 담아 둠
-const PAGE_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-const APP_DATE = '2026.11.22';
+const PAGE_HTML = ('<!DOCTYPE html>\n' + document.documentElement.outerHTML).replace(/<script[^>]+src="(?:chrome|moz|safari-web)-extension:\/\/[^"]*"[^>]*><\/script>/g, '');
+const APP_DATE = '2026.11.23';
 const APP_CREDIT = '제작: 과학교사 구인회';
 const LS_SET = 'exam-review-settings-v1';
 const LS_PLAN = 'exam-review-plan-v1';
@@ -2743,19 +2760,21 @@ async function run() {
   btn.disabled = true; btn.textContent = '점검 중…';
   msg('파일을 읽는 중입니다…');
   try {
-    const exam = await parseHwpx(files.exam);
+    let exam;
+    try { exam = await parseHwpx(files.exam); }
+    catch (e) { throw new Error('시험지 원안(' + files.exam.name + ') — ' + e.message); }
     const seg = segmentExam(exam);
     let rubricDoc = null, sheetDoc = null, infoX = null, rubric = null, sheet = null, info = null;
     const warn = [];
-    if (files.rubric) { try { rubricDoc = await parseHwpx(files.rubric); rubric = parseRubric(rubricDoc); } catch (e) { warn.push('채점기준표: ' + e.message); } }
-    if (files.sheet) { try { sheetDoc = await parseHwpx(files.sheet); sheet = parseSheet(sheetDoc); } catch (e) { warn.push('답안지: ' + e.message); } }
+    if (files.rubric) { try { rubricDoc = await parseHwpx(files.rubric); rubric = parseRubric(rubricDoc); } catch (e) { warn.push('채점기준표(' + files.rubric.name + ') — ' + e.message); } }
+    if (files.sheet) { try { sheetDoc = await parseHwpx(files.sheet); sheet = parseSheet(sheetDoc); } catch (e) { warn.push('답안지(' + files.sheet.name + ') — ' + e.message); } }
     let timetable = null;
-    if (files.tt) { try { timetable = parseTimetable(await parseHwpx(files.tt)); } catch (e) { warn.push('시험시간표: ' + e.message); } }
+    if (files.tt) { try { timetable = parseTimetable(await parseHwpx(files.tt)); } catch (e) { warn.push('시험시간표(' + files.tt.name + ') — ' + e.message); } }
     if (files.info) {
       try {
         if (/\.pdf$/i.test(files.info.name)) { msg('문항정보표 PDF를 읽는 중입니다…'); info = parseInfoPdf(await pdfTextItems(files.info), files.info.name); }
         else { infoX = await parseXlsx(files.info); info = parseInfo(infoX); }
-      } catch (e) { warn.push('문항정보표: ' + e.message); }
+      } catch (e) { warn.push('문항정보표(' + files.info.name + ') — ' + e.message); }
     }
     msg('그림을 분석하는 중입니다…');
     const imgs = await analyzeImages(exam);
