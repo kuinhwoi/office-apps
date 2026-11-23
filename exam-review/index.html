@@ -926,10 +926,29 @@ const RE = {
   seoHead: new RegExp('^[\\s\\[【<〈(〔［■□◆◇▶●○◎※]*' + SEO_KW + '(?:\\s*문항)?[\\s\\]】>〉)〕］]*(?:[(（].*[)）])?\\s*$'),
   selHead: /^[\s\[【<〈(〔［■□◆◇▶●○◎※]*(선택형|객관식)(\s*문항)?[\s\]】>〉)〕］]*([(（].*[)）])?\s*$/,
   num: /^\s*(\d{1,2})\s*[.．](?!\d)\s*/,
+  seoGroup: new RegExp('^\\s*[\\[【<〈(〔［]\\s*' + SEO_KW + '\\s*(\\d{1,2})\\s*[~∼～\\-–]\\s*(?:' + SEO_KW + '\\s*)?(\\d{1,2})\\s*[\\]】>〉)〕］]'),
   group: /^\s*[\[［]\s*(\d{1,2})\s*[~∼～\-–]\s*(\d{1,2})\s*[\]］]/,
   sub: /^\s*(?:\((\d{1,2})\)|(\d{1,2})\)(?!\d)|([①-⑩]))\s*/
 };
 const CIRC = '①②③④⑤⑥⑦⑧⑨⑩';
+
+/* '[각 3점]'처럼 문항 전체 배점 없이 한 개당 점수만 적은 표기 */
+function eachIn(text) {
+  const m = String(text || '').match(/[\[(（［]\s*각\s*(\d+(?:\.\d+)?)\s*점\s*[\])）］]/);
+  return m ? +m[1] : null;
+}
+/* 답을 쓰는 빈 괄호 '(        )' 개수 */
+function blanksIn(text) { return (String(text || '').match(/[(（]\s{4,}[)）]/g) || []).length; }
+/* 배점이 '[각 n점]'만 있으면 빈칸 수로 전체 배점을 셈 */
+function applyEach(o, text) {
+  if (o.score != null) return;
+  const e = eachIn(text);
+  if (e == null) return;
+  o.each = e;
+  const k = blanksIn(text);
+  if (k) { o.score = e * k; o.scoreInferred = '각 ' + fmtN(e) + '점 × 빈칸 ' + k + '개'; }
+}
+function fmtN(v) { return Number.isInteger(v) ? String(v) : String(+v.toFixed(2)); }
 
 function scoresIn(text) {
   const out = [];
@@ -978,13 +997,13 @@ function findOptions(text) {
 
 /* ---------- 시험지 원안 문항 나누기 ---------- */
 function segmentExam(doc) {
-  const out = { cover: [], hf: [], misc: [], qs: [], groups: [], skips: [] };
+  const out = { cover: [], hf: [], misc: [], qs: [], groups: [], skips: [], subDup: [] };
   let section = 'sel', cur = null, sub = null, group = null, lastGroup = null;
-  let lastSel = 0, lastSeo = 0, started = false;
+  let lastSel = 0, lastSeo = 0, started = false, seoMarked = false;
   const start = (type, num, p) => {
     cur = { key: (type === 'sel' ? 'S' : 'W') + num, type, num, label: type === 'sel' ? num + '번' : '서답형 ' + num,
       paras: [p], subs: [], group: null, order: type === 'sel' ? num : 1000 + num * 10 };
-    if (lastGroup && num >= lastGroup.from && num <= lastGroup.to) cur.group = lastGroup;
+    if (lastGroup && lastGroup.type === type && num >= lastGroup.from && num <= lastGroup.to) cur.group = lastGroup;
     out.qs.push(cur); sub = null; group = null; started = true;
     if (type === 'sel') lastSel = num; else lastSeo = num;
   };
@@ -992,25 +1011,48 @@ function segmentExam(doc) {
     if (p.ctx.hf) { out.hf.push(p); continue; }
     const t = p.text.replace(/^\s+/, '');
     let m;
-    if ((m = t.match(RE.seoNum))) { section = 'seo'; start('seo', +m[1], p); continue; }
+    // '[서답형 1-3] 다음을 읽고…' 같은 서답형 지문 묶음 머리
+    if ((m = t.match(RE.seoGroup))) {
+      section = 'seo'; seoMarked = true;
+      group = { from: +m[1], to: +m[2], label: '[서답형 ' + m[1] + '~' + m[2] + ']', paras: [p], order: 1000 + (+m[1]) * 10 - 5, type: 'seo' };
+      out.groups.push(group); lastGroup = group; cur = null; sub = null; continue;
+    }
+    if ((m = t.match(RE.seoNum))) { section = 'seo'; seoMarked = true; start('seo', +m[1], p); continue; }
     if (t.length < 40 && RE.seoHead.test(t)) { section = 'seo'; cur = null; sub = null; out.misc.push(p); continue; }
     if (t.length < 40 && RE.selHead.test(t)) { out.misc.push(p); continue; }
     if ((m = t.match(RE.group))) {
-      group = { from: +m[1], to: +m[2], label: '[' + m[1] + '~' + m[2] + ']', paras: [p], order: +m[1] - 0.5, type: section };
-      if (section === 'seo') group.order = 1000 + (+m[1]) * 10 - 5;
+      // 서답형 표시([서답형 n])가 따로 있는 시험지에서 번호만 있는 묶음은 선택형
+      const gt = seoMarked ? 'sel' : section;
+      group = { from: +m[1], to: +m[2], label: '[' + m[1] + '~' + m[2] + ']', paras: [p], order: +m[1] - 0.5, type: gt };
+      if (gt === 'seo') group.order = 1000 + (+m[1]) * 10 - 5;
       out.groups.push(group); lastGroup = group; cur = null; sub = null; continue;
     }
     if ((m = t.match(RE.num))) {
       const n = +m[1];
-      const exp = section === 'sel' ? n === lastSel + 1 : (n === lastSeo + 1 || (lastSeo === 0 && (n === 1 || n === lastSel + 1)));
-      if (exp) { start(section, n, p); continue; }
+      const inBox = p.ctx.tbl != null || p.ctx.box;
+      let typ = null;
+      if (section === 'sel') { if (n === lastSel + 1) typ = 'sel'; }
+      else if (seoMarked) {
+        // [서답형 n]으로 서답형을 표시한 시험지: 번호만 있는 'n.'은 선택형(서답형 사이에 섞여 나오는 선택형)
+        // 표 안의 '2. 조건을 지키지 않으면…' 같은 목록 번호는 문항이 아님
+        if (!inBox && n === lastSel + 1 && STEM_RE.test(t)) typ = 'sel';
+      } else if (n === lastSeo + 1 || (lastSeo === 0 && (n === 1 || n === lastSel + 1))) typ = 'seo';
+      if (typ) { section = typ; start(typ, n, p); continue; }
       const expN = section === 'sel' ? lastSel + 1 : lastSeo + 1;
       if (n === expN + 1 && t.length > 10 && STEM_RE.test(t)) out.skips.push({ expected: expN, found: n, p });
     }
     // 표·상자 안의 ①~⑤(실험 단계, 실험 번호 등)는 소문항으로 보지 않는다
-    if (cur && cur.type === 'seo' && (m = t.match(RE.sub)) && !(m[3] && (p.ctx.tbl != null || p.ctx.box))) {
+    // 표·상자 안의 1), (1)은 발문(…시오, ?, [n점])일 때만 소문항으로 봄(<보기> 속 목록 제외)
+    // 표 밖의 ①은 발문일 때만 소문항으로 봄(① ② 답 쓰는 줄 제외)
+    const inTbl = p.ctx.tbl != null || p.ctx.box;
+    if (cur && cur.type === 'seo' && (m = t.match(RE.sub)) && !(m[3] && inTbl) && !((inTbl || m[3]) && !STEM_RE.test(t))) {
       const n = m[1] ? +m[1] : m[2] ? +m[2] : (CIRC.indexOf(m[3]) + 1);
       const style = m[1] ? '(1)' : m[2] ? '1)' : '①';
+      // '(1)            ' 처럼 번호 뒤가 비어 있으면 답 쓰는 줄
+      const rest = t.slice(m[0].length).replace(/[\s_→.·]/g, '');
+      if (rest.length < 2) { cur.paras.push(p); if (sub) sub.paras.push(p); continue; }
+      // 소문항 번호가 겹치거나 건너뜀: (1) 다음에 또 (1)
+      if (sub && n !== sub.num + 1 && n <= sub.num && STEM_RE.test(t) && sub.style === style) out.subDup.push({ q: cur, prev: sub.num, found: n, p });
       if (n === (sub ? sub.num + 1 : 1)) {
         sub = { num: n, style, label: '(' + n + ')', paras: [p], q: cur };
         cur.subs.push(sub); cur.paras.push(p); continue;
@@ -1030,6 +1072,7 @@ function segmentExam(doc) {
     q.ownText = q.ownParas.map(p => p.text).join('\n');
     const sc = scoresIn(q.ownText);
     q.score = sc.length ? sc[0].v : null;
+    if (!q.subs.length) applyEach(q, q.ownText);
     q.scoreForms = sc.map(s => s.form);
     q.unclosed = sc.filter(s => s.unclosed).map(s => s.raw);
     q.stemParas = stemOf(q.ownParas);
@@ -1048,6 +1091,7 @@ function segmentExam(doc) {
       s.text = s.paras.map(p => p.text).join('\n');
       const ss = scoresIn(s.text);
       s.score = ss.length ? ss[0].v : null;
+      applyEach(s, s.text);
       s.scoreForms = ss.map(x => x.form);
       s.unclosed = ss.filter(x => x.unclosed).map(x => x.raw);
       s.key = q.key + '-' + s.num;
@@ -1164,6 +1208,12 @@ function parseRubric(doc) {
         else if (/^[①-⑩]$/.test(sv)) sub = CIRC.indexOf(sv) + 1;
         else if (cols.ans != null && sv && sv === String(row[cols.ans] || '').trim()) { /* 답안 칸과 합쳐진 칸: 소문항 없음 */ }
       }
+      // 소문항 칸이 없고 답안 칸 맨 앞에 '(1)'처럼 소문항 번호를 적은 표(문항 번호 칸이 여러 행에 걸쳐 병합됨)
+      if (sub == null && cols.ans != null && cols.q != null) {
+        const am = String(row[cols.ans] || '').trim().match(/^\(\s*(\d{1,2})\s*\)|^(\d{1,2})\)(?!\d)/);
+        const qc = originAt(r, cols.q);
+        if (am && qc && qc.rs > 1) sub = +(am[1] || am[2]);
+      }
       const e = get(curMain, sub);
       const sc = cols.score != null ? (row[cols.score] || '') : '';
       const sv = sc.match(/\d+(?:\.\d+)?/g);
@@ -1233,6 +1283,8 @@ function parseSheetTables(doc) {
     }
     if (h < 0) continue;
     const origin = (r, c) => T.cells.find(x => r >= x.r && r < x.r + x.rs && c >= x.c && c < x.c + x.cs);
+    const scHead = sc >= 0 ? origin(h, sc) : null;
+    const scW = scHead ? scHead.cs - (sc - scHead.c) : 1;
     let cur = null;
     for (let r = h + 1; r < g.length; r++) {
       const qt = g[r][qc] || '';
@@ -1241,27 +1293,56 @@ function parseSheetTables(doc) {
       if (cur == null) continue;
       const mkey = 'W' + cur;
       if (!items.has(mkey)) { items.set(mkey, { key: mkey, main: cur, sub: null, order: order++, score: null }); mains.push(cur); }
-      const scCell = sc >= 0 ? origin(r, sc) : null;
+      const mi = items.get(mkey);
+      const qCell = origin(r, qc);
+      // '배점' 머리글이 여러 칸에 걸치면(소문항 배점 칸 + 문항 배점 칸) 그 칸들을 모두 봄
+      const scOrigins = [];
+      for (let c = sc; sc >= 0 && c < sc + scW; c++) { const o = origin(r, c); if (o && o.r === r && !scOrigins.includes(o) && /\d/.test(o.text)) scOrigins.push(o); }
+      const isQSpan = o => qCell && qCell.rs > 1 && o.r === qCell.r && o.rs >= qCell.rs;
+      let scCell = sc >= 0 ? origin(r, sc) : null;
+      if (scOrigins.length > 1) {
+        const mc = scOrigins.find(isQSpan);
+        if (mc) {
+          const v = mc.text.match(/\d+(?:\.\d+)?/);
+          if (v && mi.score == null) mi.score = +v[0];
+          scCell = scOrigins.find(o => o !== mc);
+        }
+      }
       const scM = scCell ? scCell.text.match(/\d+(?:\.\d+)?/) : null;
       const scV = scM ? +scM[0] : null;
-      const rowCells = T.cells.filter(x => x.r === r && x.c !== qc && x.c !== sc && !(x.c <= qc && qc < x.c + x.cs)).sort((a, b) => a.c - b.c);
+      const rowCells = T.cells.filter(x => x.r === r && x.c !== qc && !(sc >= 0 && x.c >= sc && x.c < sc + scW) && !(x.c <= qc && qc < x.c + x.cs)).sort((a, b) => a.c - b.c);
       const subs = [];
+      let nested = false;
       rowCells.forEach(cell => {
         const m = cell.text.match(SUB_CELL);
-        if (m) subs.push({ n: m[1] ? +m[1] : m[2] ? +m[2] : CIRC.indexOf(m[3]) + 1, style: m[1] ? '(1)' : m[2] ? '1)' : '①', text: cell.text.replace(SUB_CELL, '') });
-        else if (subs.length) subs[subs.length - 1].text += '\n' + cell.text;
+        if (m) {
+          const style = m[1] ? '(1)' : m[2] ? '1)' : '①';
+          if (!mi.style0) mi.style0 = style;
+          // '(2)' 아래에 '1) 2)'처럼 한 단계 더 들어간 번호는 그 소문항의 일부
+          if (style !== mi.style0) { nested = true; return; }
+          subs.push({ n: m[1] ? +m[1] : m[2] ? +m[2] : CIRC.indexOf(m[3]) + 1, style, text: cell.text.replace(SUB_CELL, '') });
+        } else if (subs.length) subs[subs.length - 1].text += '\n' + cell.text;
       });
+      const one = scCell && scCell.rs === 1;
+      // 배점 칸이 문항 번호 칸과 같은 행 범위로 병합되어 있을 때만 문항 전체 배점(소문항 하나에만 걸친 병합은 그 소문항 배점)
+      const spansQ = !!(scCell && qCell && qCell.rs > 1 && scCell.r === qCell.r && scCell.rs >= qCell.rs);
       subs.forEach(s => {
         const key = mkey + '-' + s.n;
         const bs = scoresIn(s.text);
         let score = bs.length ? bs[0].v : null;
-        if (score == null && scV != null && scCell && scCell.rs === 1 && subs.length === 1) score = scV;
+        if (score == null && scV != null && subs.length === 1 && (one || !spansQ)) score = scV;
         if (!items.has(key)) items.set(key, { key, main: cur, sub: s.n, style: s.style, order: order++, score });
+        mi._curSub = items.get(key);
       });
-      const mi = items.get(mkey);
-      if (scV != null && mi.score == null && (!subs.length || subs.length > 1 || (scCell && scCell.rs > 1))) mi.score = scV;
+      if (!subs.length && mi._curSub && scV != null && one && nested) {
+        // 한 단계 더 들어간 줄의 배점은 위 소문항에 더함
+        mi._curSub.score = (mi._curSub.score || 0) + scV;
+        continue;
+      }
+      if (scV != null && mi.score == null && (!subs.length || subs.length > 1 || spansQ)) mi.score = scV;
     }
   }
+  for (const it of items.values()) { delete it._curSub; delete it.style0; }
   return { items, mains };
 }
 function parseSheet(doc) {
@@ -1572,14 +1653,22 @@ function runChecks(D) {
     const grp = q.type;
     if (q.type === 'sel' && q.score == null) add('exam', grp, q.label, q.order, '점수', '배점 표기([n점])를 찾지 못했습니다.', '발문 끝에 배점을 [n점] 형식으로 표기');
     if (q.type === 'seo') {
-      if (q.score == null && !q.subs.length) add('exam', grp, q.label, q.order, '점수', '배점 표기([n점])를 찾지 못했습니다.', '배점을 [n점] 형식으로 표기');
+      if (q.score == null && !q.subs.length) {
+        if (q.each != null) add('exam', grp, q.label, q.order, '점수', '‘각 ' + fmtNum(q.each) + '점’만 적혀 있어 문항 전체 배점을 알 수 없습니다.', '[8점, 각 4점]처럼 전체 배점을 함께 표기');
+        else add('exam', grp, q.label, q.order, '점수', '배점 표기([n점])를 찾지 못했습니다.', '배점을 [n점] 형식으로 표기');
+      }
       if (q.subs.length) {
-        q.subs.filter(s => s.score == null).forEach(s => { if (q.score == null || q.subs.length > 1) add('exam', grp, s.fullLabel, s.order, '점수', '소문항 배점 표기를 찾지 못했습니다.', '소문항마다 배점을 표기하거나 문항 전체 배점과 함께 표기'); });
+        const noSub = q.subs.filter(s => s.score == null);
+        if (q.score != null && noSub.length === q.subs.length) {
+          // 문항 배점만 있고 소문항 배점은 하나도 없음: 문항에 한 번만 안내
+          if (q.subs.length > 1) add('exam', grp, q.label, q.order, '점수', '소문항별 배점이 없습니다(문항 배점 ' + fmtNum(q.score) + '점만 표기, 소문항 ' + q.subs.length + '개).', '학교 규칙에 따라 소문항마다 배점을 표기');
+        } else noSub.forEach(s => add('exam', grp, s.fullLabel, s.order, '점수', '소문항 배점 표기를 찾지 못했습니다.', '소문항마다 배점을 표기하거나 문항 전체 배점과 함께 표기'));
         if (q.score != null && q.subAllScored && Math.abs(q.subSum - q.score) > 1e-9) add('exam', grp, q.label, q.order, '점수', '문항 배점 ' + fmtNum(q.score) + '점 ≠ 소문항 합 ' + fmtNum(q.subSum) + '점 (' + q.subs.map(s => s.label + ' ' + fmtNum(s.score)).join(', ') + ')', '문항 배점과 소문항 배점을 일치시킴');
         else if (q.score != null && q.subAllScored) ok('시험지 원안', q.label + ' 소문항 합산', '소문항 합 ' + fmtNum(q.subSum) + '점 = 문항 배점');
       }
     }
   });
+  (seg.subDup || []).forEach(d => add('exam', d.q.type, d.q.label, d.q.order + d.prev + 0.5, '오타', '소문항 번호가 (' + d.prev + ') 다음에 다시 (' + d.found + ')로 적혀 있습니다: "' + snip(d.p.text, 0, 30, 0) + '"', '(' + (d.prev + 1) + ')로 고침'));
   qs.forEach(q => {
     q.unclosed.forEach(r => add('exam', q.type, q.label, q.order, '오타', '배점 괄호가 닫히지 않았습니다: "' + r + '"', '닫는 괄호( ] ) 추가'));
     q.subs.forEach(s => s.unclosed.forEach(r => add('exam', q.type, s.fullLabel, s.order, '오타', '배점 괄호가 닫히지 않았습니다: "' + r + '"', '닫는 괄호( ] ) 추가')));
@@ -1964,6 +2053,8 @@ function runChecks(D) {
   {
     const DOCN = { exam: '시험지', rubric: '채점기준표', sheet: '답안지' };
     const stems = new Map(); // stem -> {n, locs}
+    // 묶음 지문([1~3], [서답형 1-3] 아래의 작품·글)은 원문을 옮긴 것이라 오타 후보로 알리지 않음(낱말 수 세기에는 씀)
+    const passageSet = new Set(seg.groups.flatMap(g => g.paras.map(p => p.i)));
     textDocs.forEach(td => td.d.paras.forEach(p => {
       if (p.ctx.hf || (td.id === 'exam' && coverSet.has(p.i))) return;
       const re = /[가-힣]+/g; let m;
@@ -1973,6 +2064,7 @@ function runChecks(D) {
         let e = stems.get(st);
         if (!e) { e = { n: 0, locs: [], word: m[0] }; stems.set(st, e); }
         e.n++;
+        if (td.id === 'exam' && passageSet.has(p.i)) e.passage = (e.passage || 0) + 1;
         if (e.locs.length < 3) e.locs.push({ doc: td.id, lab: (td.lab(p).label || '공통'), order: td.lab(p).order, group: td.lab(p).group, snip: snip(p.text, m.index, m[0].length, 8), word: m[0] });
       }
     }));
@@ -1984,7 +2076,7 @@ function runChecks(D) {
     let cnt = 0;
     const reported = new Set();
     stems.forEach((e, st) => {
-      if (e.n !== 1 || cnt >= 20) return;
+      if (e.n !== 1 || cnt >= 20 || e.passage) return;
       for (let i = 0; i < st.length; i++) {
         const k = st.length + ':' + st.slice(0, i) + '*' + st.slice(i + 1);
         // 활용 어미·조사 자리(낱말의 끝 글자)가 바뀐 것은 정상 활용일 수 있어 제외
@@ -2556,7 +2648,7 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v1.8';
+const APP_VERSION = 'v1.9';
 // 처음 불러온 그대로의 화면(내 컴퓨터에 저장하기용) — 화면이 바뀌기 전에 담아 둠
 const PAGE_HTML = ('<!DOCTYPE html>\n' + document.documentElement.outerHTML).replace(/<script[^>]+src="(?:chrome|moz|safari-web)-extension:\/\/[^"]*"[^>]*><\/script>/g, '');
 const APP_DATE = '2026.11.23';
