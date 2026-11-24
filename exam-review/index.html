@@ -3030,7 +3030,7 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v2.2';
+const APP_VERSION = 'v2.3';
 // 처음 불러온 그대로의 화면(내 컴퓨터에 저장하기용) — 화면이 바뀌기 전에 담아 둠
 const PAGE_HTML = ('<!DOCTYPE html>\n' + document.documentElement.outerHTML).replace(/<script[^>]+src="(?:chrome|moz|safari-web)-extension:\/\/[^"]*"[^>]*><\/script>/g, '');
 const APP_DATE = '2026.11.24';
@@ -3149,7 +3149,8 @@ async function analyzeImages(exam) {
         const sc = Math.min(1, 1000 / Math.max(bmp.width, bmp.height));
         const cw = Math.max(1, Math.round(bmp.width * sc)), ch = Math.max(1, Math.round(bmp.height * sc));
         const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-        const g = cv.getContext('2d');
+        // willReadFrequently: CPU로 그려 실행할 때마다 같은 픽셀 값이 나오게 함
+        const g = cv.getContext('2d', { willReadFrequently: true });
         g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.drawImage(bmp, 0, 0, cw, ch);
         rec.url = cv.toDataURL('image/png');
         const d = g.getImageData(0, 0, cw, ch), px = d.data;
@@ -3181,12 +3182,15 @@ async function analyzeImages(exam) {
           for (let k = -R; k <= R; k++) { const yy = y + k; if (yy < 0 || yy >= H) continue; const v = mn1[yy * W + x]; if (v < m) m = v; s += bl1[yy * W + x]; c++; }
           mn2[y * W + x] = m; bl2[y * W + x] = s / c;
         }
+        // 잡티·얼룩용 무작위 값: 그림마다 고정된 씨앗을 써서 같은 그림은 늘 같은 결과(점검 결과가 실행마다 흔들리지 않게)
+        let seed = (cw * 73856093) ^ (ch * 19349663) ^ (r.bytes | 0);
+        const rand = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
         // 넓은 얼룩: 굵은 격자 위 무작위 값을 부드럽게 이어 붙임
         const GS = Math.max(16, Math.round(Math.max(W, H) / 14));
         const gw = Math.ceil(W / GS) + 2, gh = Math.ceil(H / GS) + 2;
-        const grid = new Float32Array(gw * gh).map(() => (Math.random() - 0.5) * 2);
+        const grid = new Float32Array(gw * gh).map(() => (rand() - 0.5) * 2);
         const rowBand = new Float32Array(H);
-        { let v = 0; for (let y = 0; y < H; y++) { if (y % Math.max(3, R * 2) === 0) v = (Math.random() - 0.5) * 2; rowBand[y] = v; } }
+        { let v = 0; for (let y = 0; y < H; y++) { if (y % Math.max(3, R * 2) === 0) v = (rand() - 0.5) * 2; rowBand[y] = v; } }
         let ssum = 0, ssum2 = 0, sdark = 0;
         for (let y = 0, j = 0; y < H; y++) for (let x = 0; x < W; x++, j++) {
           const i = j * 4;
@@ -3196,7 +3200,7 @@ async function analyzeImages(exam) {
           const spread = bl2[j];
           let v = rendRiso(spread);
           const ink = 1 - v / 255; // 잉크가 묻은 정도
-          v += mottle * 26 * (0.35 + ink) + rowBand[y] * 7 + (Math.random() - 0.5) * 22;
+          v += mottle * 26 * (0.35 + ink) + rowBand[y] * 7 + (rand() - 0.5) * 22;
           const o = Math.max(0, Math.min(255, v));
           px[i] = o; px[i + 1] = o * 0.985; px[i + 2] = o * 0.94;
           ssum += o; ssum2 += o * o;
