@@ -1638,13 +1638,19 @@ function parseSheetTables(doc) {
   let order = 0;
   for (const T of doc.tables) {
     const g = tableGrid(T);
-    let h = -1, qc = -1, sc = -1;
+    const origin = (r, c) => T.cells.find(x => r >= x.r && r < x.r + x.rs && c >= x.c && c < x.c + x.cs);
+    // 머리글 줄 찾기. 한 표를 좌우로 나눠 '문항·답란·배점'이 두 번 이상 나오면 묶음마다 따로 읽음
+    let h = -1, qcs = [];
     for (let r = 0; r < Math.min(g.length, 3) && h < 0; r++) {
-      g[r].forEach((t, c) => { const s = String(t).replace(/\s/g, ''); if (qc < 0 && /^(문항|문항번호|번호|문항\(번호\))$/.test(s)) qc = c; if (sc < 0 && /^배점/.test(s)) sc = c; });
-      if (qc >= 0) h = r;
+      qcs = [];
+      g[r].forEach((t, c) => { const o = origin(r, c); if (o && o.c === c && /^(문항|문항번호|번호|문항\(번호\))$/.test(String(t).replace(/\s/g, ''))) qcs.push(c); });
+      if (qcs.length) h = r;
     }
     if (h < 0) continue;
-    const origin = (r, c) => T.cells.find(x => r >= x.r && r < x.r + x.rs && c >= x.c && c < x.c + x.cs);
+    for (let bi = 0; bi < qcs.length; bi++) {
+    const qc = qcs[bi], lo = qc, hi = bi + 1 < qcs.length ? qcs[bi + 1] : (g[h] || []).length;
+    let sc = -1;
+    for (let c = qc + 1; c < hi && sc < 0; c++) if (/^배점/.test(String(g[h][c]).replace(/\s/g, ''))) sc = c;
     const scHead = sc >= 0 ? origin(h, sc) : null;
     const scW = scHead ? scHead.cs - (sc - scHead.c) : 1;
     let cur = null;
@@ -1672,7 +1678,7 @@ function parseSheetTables(doc) {
       }
       const scM = scCell ? scCell.text.match(/\d+(?:\.\d+)?/) : null;
       const scV = scM ? +scM[0] : null;
-      const rowCells = T.cells.filter(x => x.r === r && x.c !== qc && !(sc >= 0 && x.c >= sc && x.c < sc + scW) && !(x.c <= qc && qc < x.c + x.cs)).sort((a, b) => a.c - b.c);
+      const rowCells = T.cells.filter(x => x.r === r && x.c !== qc && x.c >= lo && x.c < hi &&!(sc >= 0 && x.c >= sc && x.c < sc + scW) && !(x.c <= qc && qc < x.c + x.cs)).sort((a, b) => a.c - b.c);
       const subs = [];
       let nested = false;
       rowCells.forEach(cell => {
@@ -1702,6 +1708,7 @@ function parseSheetTables(doc) {
         continue;
       }
       if (scV != null && mi.score == null && (!subs.length || subs.length > 1 || spansQ)) mi.score = scV;
+    }
     }
   }
   for (const it of items.values()) { delete it._curSub; delete it.style0; }
@@ -1971,6 +1978,17 @@ function typoContraction(a, b) {
 }
 function lines(s) { return String(s || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean); }
 function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+/* 문단 글자에서 수식 부분(앞뒤에 붙인 빈칸 포함)을 □ 한 글자로 바꾼 것 */
+function noEqText(p) {
+  if (!p.runs || !p.runs.some(r => r.cp === 'eq')) return p.text;
+  let s = '', at = 0;
+  for (const r of p.runs) {
+    if (r.cp !== 'eq') continue;
+    s += p.text.slice(at, r.s) + '□';
+    at = r.e;
+  }
+  return s + p.text.slice(at);
+}
 function snip(t, i, len, ctx) { ctx = ctx || 12; const s = Math.max(0, i - ctx); return (s > 0 ? '…' : '') + t.slice(s, i + len + ctx).replace(/\s+/g, ' ').trim() + (i + len + ctx < t.length ? '…' : ''); }
 function jong(ch) { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 ? c % 28 : -1; }
 function nospace(s) { return String(s || '').replace(/\s+/g, ''); }
@@ -2173,8 +2191,10 @@ function runChecks(D) {
       if (/(것은|것만을[^?]*|까닭은|이유는|무엇인가|옳은가|고른 것은)\s*([\[(（［]\s*\d+(\.\d+)?\s*점\s*[\])）］])?\s*$/.test(t) && !/\?/.test(t)) add('exam', u.group, u.label, u.order, '문구', '발문 끝에 물음표가 없습니다: "' + snip(t, Math.max(0, t.length - 20), 20) + '"', '물음표(?) 추가');
       const sp = t.search(/[가-힣]\s+\?/);
       if (sp >= 0) add('exam', u.group, u.label, u.order, '오타', '물음표 앞에 빈칸이 있습니다: "' + snip(t, sp, 3) + '"', '물음표를 앞말에 붙임');
-      const ds = t.search(/[^\s.?!()\]:] {2,}[^\s)]/);
-      if (ds >= 0 && !/[①-⑤]/.test(t)) add('exam', u.group, u.label, u.order, '오타', '발문에 빈칸이 두 칸 이상 연속됩니다: "' + snip(t, ds, 4) + '"', '빈칸을 한 칸으로');
+      // 수식은 앞뒤에 빈칸을 붙여 읽으므로(' 수식 '), 빈칸 검사에서는 수식을 빈칸 없는 한 글자(□)로 바꿔 봄
+      const tq = noEqText(p).trim();
+      const ds = tq.search(/[^\s.?!()\]:] {2,}[^\s)]/);
+      if (ds >= 0 && !/[①-⑤]/.test(tq)) add('exam', u.group, u.label, u.order, '오타', '발문에 빈칸이 두 칸 이상 연속됩니다: "' + snip(tq, ds, 4) + '"' + (/□/.test(snip(tq, ds, 4)) ? ' (□는 수식 자리)' : ''), '빈칸을 한 칸으로');
     });
     const q = u.q;
     if (!q) return;
@@ -3010,7 +3030,7 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v2.0';
+const APP_VERSION = 'v2.1';
 // 처음 불러온 그대로의 화면(내 컴퓨터에 저장하기용) — 화면이 바뀌기 전에 담아 둠
 const PAGE_HTML = ('<!DOCTYPE html>\n' + document.documentElement.outerHTML).replace(/<script[^>]+src="(?:chrome|moz|safari-web)-extension:\/\/[^"]*"[^>]*><\/script>/g, '');
 const APP_DATE = '2026.11.24';
