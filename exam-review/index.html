@@ -3030,7 +3030,7 @@ function ChecklistApp(root, data, key) {
 }
 
 /* ===== app.js : 화면 동작 ===== */
-const APP_VERSION = 'v2.1';
+const APP_VERSION = 'v2.2';
 // 처음 불러온 그대로의 화면(내 컴퓨터에 저장하기용) — 화면이 바뀌기 전에 담아 둠
 const PAGE_HTML = ('<!DOCTYPE html>\n' + document.documentElement.outerHTML).replace(/<script[^>]+src="(?:chrome|moz|safari-web)-extension:\/\/[^"]*"[^>]*><\/script>/g, '');
 const APP_DATE = '2026.11.24';
@@ -3324,13 +3324,17 @@ function summaryHtml(res, ctx) {
     + '</div>';
   o += '<p class="sum-note">빨간 칸: 시험지 배점과 다른 값, 그리고 다른 문서와 배점이 다르거나 소문항 합이 문항 배점과 다른 시험지 칸입니다. 빈칸은 해당 문서에 그 단위(문항/소문항)의 배점이 따로 적혀 있지 않은 경우입니다. 채점기준표·답안지는 서답형만 비교합니다.</p>';
   // 난이도
+  // 난이도 비율(왼쪽)·내용 영역별 분포(오른쪽)를 2단으로. 하나만 있으면 한 단
+  const dist = [];
   if (sm.diff) {
-    o += '<h3 class="sum-h">난이도 비율(문항정보표)</h3><div class="tbl-wrap"><table class="sum-t"><thead><tr><th>난이도</th><th>문항 수</th><th>문항 수 비율</th><th>배점</th><th>배점 비율</th></tr></thead><tbody>'
-      + sm.diff.map(d => '<tr><td>' + h(d.k) + '</td><td>' + d.n + '</td><td>' + d.pn + '%</td><td>' + fmt(d.s) + '</td><td>' + d.ps + '%</td></tr>').join('') + '</tbody></table></div>';
+    dist.push('<h3 class="sum-h">난이도 비율(문항정보표)</h3><div class="tbl-wrap"><table class="sum-t"><thead><tr><th>난이도</th><th>문항 수</th><th>문항 수 비율</th><th>배점</th><th>배점 비율</th></tr></thead><tbody>'
+      + sm.diff.map(d => '<tr><td>' + h(d.k) + '</td><td>' + d.n + '</td><td>' + d.pn + '%</td><td>' + fmt(d.s) + '</td><td>' + d.ps + '%</td></tr>').join('') + '</tbody></table></div>');
   }
   if (sm.areas && sm.areas.length) {
-    o += '<h3 class="sum-h">내용 영역별 분포</h3><div class="tbl-wrap"><table class="sum-t"><thead><tr><th>내용 영역</th><th>문항 수</th><th>배점</th></tr></thead><tbody>' + sm.areas.map(a => '<tr><td>' + h(a.k) + '</td><td>' + a.n + '</td><td>' + fmt(a.s) + '</td></tr>').join('') + '</tbody></table></div>';
+    dist.push('<h3 class="sum-h">내용 영역별 분포</h3><div class="tbl-wrap"><table class="sum-t"><thead><tr><th>내용 영역</th><th>문항 수</th><th>배점</th></tr></thead><tbody>' + sm.areas.map(a => '<tr><td>' + h(a.k) + '</td><td>' + a.n + '</td><td>' + fmt(a.s) + '</td></tr>').join('') + '</tbody></table></div>');
   }
+  if (dist.length === 2) o += '<div class="sum-2col">' + dist.map(x => '<div>' + x + '</div>').join('') + '</div>';
+  else o += dist.join('');
   if (sm.fonts && sm.fonts.length) {
     o += '<h3 class="sum-h">글꼴·글자 크기(문항 본문)</h3><div class="two"><div class="tbl-wrap"><table class="sum-t"><thead><tr><th>글꼴</th><th>비율</th></tr></thead><tbody>' + sm.fonts.map(f => '<tr><td>' + h(f.k) + '</td><td>' + f.p + '%</td></tr>').join('') + '</tbody></table></div>'
       + '<div class="tbl-wrap"><table class="sum-t"><thead><tr><th>크기</th><th>비율</th></tr></thead><tbody>' + sm.sizes.map(s => '<tr><td>' + s.k + 'pt</td><td>' + s.p + '%</td></tr>').join('') + '</tbody></table></div></div>';
